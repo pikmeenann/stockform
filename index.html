@@ -292,7 +292,14 @@
     let appData = null;
     let stockMap = {};
     let pendingPayload = null;
+      const urlParams =
+        new URLSearchParams(window.location.search);
 
+      const currentAction =
+        urlParams.get('action') || 'stock';
+
+    
+    
     async function main() {
       try {
         await liff.init({ liffId: LIFF_ID });
@@ -334,10 +341,33 @@
 
       document.getElementById('recorderName').value = data.user.name || '';
 
-      renderBranches();
-      renderTables();
+renderBranches();
 
-      await loadStockMap();
+if (currentAction === 'stock') {
+
+  renderTables();
+  await loadStockMap();
+
+}
+
+if (currentAction === 'stockview') {
+
+  renderStockViewOnly();
+  await loadStockMap();
+
+}
+
+if (currentAction === 'sales') {
+
+  renderSalesPage();
+
+}
+
+if (currentAction === 'help') {
+
+  renderHelpPage();
+
+}
 
       setStatus(
         'ผู้ใช้: ' + data.user.name + '\n' +
@@ -705,7 +735,79 @@
       alert('เกิดข้อผิดพลาด: ' + (err.message || JSON.stringify(err)));
       setStatus('เกิดข้อผิดพลาด กรุณาลองใหม่');
     }
+function hideAllCards() {
 
+  document.querySelectorAll('.card')
+    .forEach(el => {
+      el.style.display = 'none';
+    });
+
+}
+
+function renderStockViewOnly() {
+
+  renderTables();
+
+  document.getElementById('previewBtn')
+    .style.display = 'none';
+
+  document.querySelector('.secondary')
+    .style.display = 'none';
+
+  document.getElementById('note')
+    .style.display = 'none';
+
+  document.querySelectorAll('input.qty')
+    .forEach(input => {
+      input.disabled = true;
+      input.placeholder = '-';
+    });
+
+  setStatus(
+    'โหมดดูสต๊อก'
+  );
+
+}
+
+function renderSalesPage() {
+
+  hideAllCards();
+
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>ยอดขายวันนี้</h1>
+
+      <div class="status">
+        ฟังก์ชันนี้กำลังพัฒนา
+      </div>
+    </div>
+  `;
+
+}
+
+function renderHelpPage() {
+
+  hideAllCards();
+
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>วิธีใช้งาน</h1>
+
+      <div class="summary">
+1. เลือกสาขา
+
+2. กรอกจำนวนสินค้า
+
+3. กดตรวจสอบก่อนบันทึก
+
+4. ตรวจสอบยอดขายและสต๊อก
+
+5. กดยืนยันบันทึก
+      </div>
+    </div>
+  `;
+
+}
     main();
   </script>
 </body>
