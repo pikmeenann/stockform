@@ -292,23 +292,51 @@
     let appData = null;
     let stockMap = {};
     let pendingPayload = null;
-const params = new URLSearchParams(window.location.search);
+let currentAction = 'stock';
 
-const currentAction =
-  params.get('mode') ||
-  params.get('action') ||
-  (window.location.hash ? window.location.hash.replace('#', '') : '') ||
-  'stock';
+function detectCurrentAction() {
+  const searchParams = new URLSearchParams(window.location.search);
+
+  let mode =
+    searchParams.get('mode') ||
+    searchParams.get('action') ||
+    '';
+
+  if (!mode && window.location.hash) {
+    mode = window.location.hash.replace('#', '');
+  }
+
+  try {
+    const context = liff.getContext();
+    const state = context && context.liff && context.liff.state
+      ? decodeURIComponent(context.liff.state)
+      : '';
+
+    if (state) {
+      const cleanState = state.replace(/^\?/, '');
+      const stateParams = new URLSearchParams(cleanState);
+
+      mode =
+        stateParams.get('mode') ||
+        stateParams.get('action') ||
+        mode;
+    }
+  } catch (err) {}
+
+  currentAction = mode || 'stock';
+}
     
     
 async function main() {
   try {
+    await liff.init({ liffId: LIFF_ID });
+
+    detectCurrentAction();
+
     if (currentAction === 'help') {
       renderHelpPage();
       return;
     }
-
-    await liff.init({ liffId: LIFF_ID });
 
     if (!liff.isLoggedIn()) {
       liff.login();
