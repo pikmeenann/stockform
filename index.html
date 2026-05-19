@@ -392,6 +392,16 @@ if (currentAction === 'sales') {
   return;
 }
 
+if (currentAction === 'dashboard') {
+  renderDashboardPage();
+  return;
+}
+
+if (currentAction === 'users') {
+  renderUsersPage();
+  return;
+}
+
 if (currentAction === 'help') {
   renderHelpPage();
   return;
@@ -891,6 +901,58 @@ function renderHelpPage() {
     </div>
   `;
 
+}
+    function renderDashboardPage() {
+  if (!['manager', 'owner'].includes(appData.user.role)) {
+    document.body.innerHTML = `
+      <div class="card">
+        <h1>ไม่มีสิทธิ์</h1>
+        <div class="status">หน้านี้สำหรับหัวหน้า/เจ้าของเท่านั้น</div>
+      </div>
+    `;
+    return;
+  }
+
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>Dashboard</h1>
+      <div class="status">
+        Dashboard ภาพรวมกำลังพัฒนา
+
+        ตอนนี้ใช้งานได้แล้ว:
+        - บันทึกสต๊อก
+        - ดูสต๊อก
+        - ยอดขายวันนี้
+        - รายงานเมื่อวานผ่าน LINE
+      </div>
+    </div>
+  `;
+}
+    function renderUsersPage() {
+  if (!['manager', 'owner'].includes(appData.user.role)) {
+    document.body.innerHTML = `
+      <div class="card">
+        <h1>ไม่มีสิทธิ์</h1>
+        <div class="status">หน้านี้สำหรับหัวหน้า/เจ้าของเท่านั้น</div>
+      </div>
+    `;
+    return;
+  }
+
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>จัดการพนักงาน</h1>
+      <div class="status">
+        หน้านี้กำลังพัฒนา
+
+        ตอนนี้จัดการได้ผ่าน Google Sheet:
+        - เปลี่ยน status เป็น active เพื่ออนุมัติ
+        - เปลี่ยน status เป็น inactive เพื่อตัดสิทธิ์
+        - เปลี่ยน role เป็น staff / manager / owner
+        - เปลี่ยน branch_id ตามสาขา
+      </div>
+    </div>
+  `;
 }
     main();
   </script>
