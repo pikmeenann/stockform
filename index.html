@@ -299,23 +299,28 @@ const currentAction =
 
     
     
-    async function main() {
-      try {
-        await liff.init({ liffId: LIFF_ID });
-
-        if (!liff.isLoggedIn()) {
-          liff.login();
-          return;
-        }
-
-        const profile = await liff.getProfile();
-        lineUserId = profile.userId;
-
-        await loadAppData();
-      } catch (err) {
-        showError(err);
-      }
+async function main() {
+  try {
+    if (currentAction === 'help') {
+      renderHelpPage();
+      return;
     }
+
+    await liff.init({ liffId: LIFF_ID });
+
+    if (!liff.isLoggedIn()) {
+      liff.login();
+      return;
+    }
+
+    const profile = await liff.getProfile();
+    lineUserId = profile.userId;
+
+    await loadAppData();
+  } catch (err) {
+    showError(err);
+  }
+}
 
     async function apiGet(params) {
       const url = API_URL + '?' + new URLSearchParams(params).toString();
@@ -725,9 +730,10 @@ if (currentAction === 'help') {
       pendingPayload = null;
     }
 
-    function setStatus(text) {
-      document.getElementById('status').textContent = text;
-    }
+function setStatus(text) {
+  const el = document.getElementById('status');
+  if (el) el.textContent = text;
+}
 
     function showError(err) {
       console.error(err);
