@@ -1,0 +1,712 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Form</title>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      padding: 12px;
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      color: #111827;
+    }
+
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 2px 10px rgba(0,0,0,.08);
+    }
+
+    h1 {
+      font-size: 22px;
+      margin: 0 0 12px;
+    }
+
+    h2 {
+      font-size: 18px;
+      margin: 0 0 12px;
+    }
+
+    label {
+      display: block;
+      margin-top: 12px;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    input,
+    select,
+    textarea,
+    button {
+      width: 100%;
+      padding: 11px;
+      margin-top: 6px;
+      border-radius: 10px;
+      border: 1px solid #d1d5db;
+      font-size: 15px;
+    }
+
+    input[type="number"] {
+      text-align: center;
+    }
+
+    input[readonly] {
+      background: #f3f4f6;
+    }
+
+    button {
+      border: none;
+      background: #06c755;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #6b7280;
+    }
+
+    button.danger {
+      background: #dc2626;
+    }
+
+    button:disabled {
+      background: #9ca3af;
+      cursor: not-allowed;
+    }
+
+    .status {
+      padding: 10px;
+      border-radius: 10px;
+      background: #eef2ff;
+      font-size: 14px;
+      white-space: pre-line;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 720px;
+      background: white;
+    }
+
+    th,
+    td {
+      border-bottom: 1px solid #e5e7eb;
+      padding: 8px;
+      text-align: center;
+      font-size: 13px;
+    }
+
+    th {
+      background: #f9fafb;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    td.product {
+      text-align: left;
+      min-width: 150px;
+      font-weight: bold;
+    }
+
+    .price {
+      display: block;
+      color: #6b7280;
+      font-weight: normal;
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
+    .qty {
+      width: 64px;
+      padding: 8px;
+      font-size: 14px;
+    }
+
+    .summary {
+      white-space: pre-line;
+      line-height: 1.5;
+      font-size: 14px;
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,.45);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 999;
+    }
+
+    .modal {
+      width: 100%;
+      max-width: 520px;
+      max-height: 85vh;
+      overflow-y: auto;
+      background: white;
+      border-radius: 18px;
+      padding: 16px;
+    }
+
+    .modal-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 30px 12px;
+      color: #6b7280;
+    }
+
+    .small {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 6px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="card">
+    <h1>บันทึกสต๊อก / ยอดขาย</h1>
+    <div id="status" class="status">กำลังโหลดข้อมูล...</div>
+
+    <label>ชื่อผู้บันทึก</label>
+    <input id="recorderName" type="text" readonly />
+
+    <label>สาขา</label>
+    <select id="branch" onchange="loadStockMap()"></select>
+
+    <div class="small">
+      ระบบใช้ LINE UID ตรวจสิทธิ์ พนักงานจะเลือกได้เฉพาะสาขาตัวเอง
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>น้ำขวด</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>สินค้า</th>
+            <th>คงเหลือ</th>
+            <th>เติม</th>
+            <th>ขาย</th>
+            <th>แถม</th>
+            <th>เสีย</th>
+            <th>ชิม</th>
+          </tr>
+        </thead>
+        <tbody id="waterRows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>ผลไม้พร้อมทาน</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>สินค้า</th>
+            <th>คงเหลือ</th>
+            <th>เติม</th>
+            <th>ขาย 99</th>
+            <th>ขาย 79</th>
+            <th>แพ็คคู่ 129</th>
+            <th>เสีย</th>
+          </tr>
+        </thead>
+        <tbody id="fruitRows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>ผงจิ้ม</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>สินค้า</th>
+            <th>คงเหลือ</th>
+            <th>แถม</th>
+          </tr>
+        </thead>
+        <tbody id="dipRows"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <label>หมายเหตุรวม</label>
+    <textarea id="note" rows="2" placeholder="ใส่หมายเหตุถ้ามี"></textarea>
+
+    <button id="previewBtn" onclick="openPreview()">ตรวจสอบก่อนบันทึก</button>
+    <button class="secondary" onclick="clearForm()">ล้างข้อมูล</button>
+  </div>
+
+  <div id="modalBackdrop" class="modal-backdrop">
+    <div class="modal">
+      <h2>ตรวจสอบก่อนบันทึก</h2>
+      <div id="summaryText" class="summary"></div>
+      <div class="modal-actions">
+        <button class="secondary" onclick="closePreview()">แก้ไข</button>
+        <button id="confirmBtn" onclick="submitConfirmed()">ยืนยันบันทึก</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const LIFF_ID = 'ใส่_LIFF_ID';
+    const API_URL = 'ใส่_GAS_WEB_APP_URL_ที่ลงท้าย_/exec';
+
+    let lineUserId = '';
+    let appData = null;
+    let stockMap = {};
+    let pendingPayload = null;
+
+    async function main() {
+      try {
+        await liff.init({ liffId: LIFF_ID });
+
+        if (!liff.isLoggedIn()) {
+          liff.login();
+          return;
+        }
+
+        const profile = await liff.getProfile();
+        lineUserId = profile.userId;
+
+        await loadAppData();
+      } catch (err) {
+        showError(err);
+      }
+    }
+
+    async function apiGet(params) {
+      const url = API_URL + '?' + new URLSearchParams(params).toString();
+      const res = await fetch(url);
+      return await res.json();
+    }
+
+    async function loadAppData() {
+      setStatus('กำลังโหลดข้อมูลผู้ใช้งาน...');
+
+      const data = await apiGet({
+        action: 'appData',
+        lineUserId: lineUserId
+      });
+
+      if (!data.ok) {
+        document.body.innerHTML = '<div class="card">' + data.message + '</div>';
+        return;
+      }
+
+      appData = data;
+
+      document.getElementById('recorderName').value = data.user.name || '';
+
+      renderBranches();
+      renderTables();
+
+      await loadStockMap();
+
+      setStatus(
+        'ผู้ใช้: ' + data.user.name + '\n' +
+        'สิทธิ์: ' + data.user.role
+      );
+    }
+
+    function renderBranches() {
+      const select = document.getElementById('branch');
+      select.innerHTML = '';
+
+      appData.branches.forEach(b => {
+        const option = document.createElement('option');
+        option.value = b.branch_id;
+        option.textContent = b.branch_name;
+        select.appendChild(option);
+      });
+    }
+
+    async function loadStockMap() {
+      const branchId = getBranchId();
+      if (!branchId) return;
+
+      try {
+        const data = await apiGet({
+          action: 'stockMap',
+          branchId: branchId
+        });
+
+        if (data.ok) {
+          stockMap = data.stockMap || {};
+          updateStockDisplays();
+        }
+      } catch (err) {
+        showError(err);
+      }
+    }
+
+    function renderTables() {
+      renderWaterRows();
+      renderFruitRows();
+      renderDipRows();
+    }
+
+    function renderWaterRows() {
+      const tbody = document.getElementById('waterRows');
+      tbody.innerHTML = '';
+
+      getProductsByCategory('WATER').forEach(p => {
+        tbody.appendChild(createRow(p, [
+          ['stockIn', 'เติม'],
+          ['saleNormal', 'ขาย'],
+          ['freeQty', 'แถม'],
+          ['damagedQty', 'เสีย'],
+          ['tastingQty', 'ชิม']
+        ]));
+      });
+    }
+
+    function renderFruitRows() {
+      const tbody = document.getElementById('fruitRows');
+      tbody.innerHTML = '';
+
+      getProductsByCategory('FRUIT').forEach(p => {
+        tbody.appendChild(createRow(p, [
+          ['stockIn', 'เติม'],
+          ['saleRF', '99'],
+          ['saleRP', '79'],
+          ['saleR2', 'คู่'],
+          ['damagedQty', 'เสีย']
+        ]));
+      });
+    }
+
+    function renderDipRows() {
+      const tbody = document.getElementById('dipRows');
+      tbody.innerHTML = '';
+
+      getProductsByCategory('DIP').forEach(p => {
+        tbody.appendChild(createRow(p, [
+          ['freeQty', 'แถม']
+        ]));
+      });
+    }
+
+    function createRow(product, fields) {
+      const tr = document.createElement('tr');
+      tr.dataset.productId = product.product_id;
+      tr.dataset.category = product.category;
+
+      const nameTd = document.createElement('td');
+      nameTd.className = 'product';
+      nameTd.innerHTML =
+        product.product_name +
+        '<span class="price">' +
+        product.product_id +
+        ' / ' +
+        Number(product.base_price || 0).toLocaleString() +
+        ' บาท</span>';
+      tr.appendChild(nameTd);
+
+      const stockTd = document.createElement('td');
+      stockTd.id = 'stock_' + product.product_id;
+      stockTd.textContent = '-';
+      tr.appendChild(stockTd);
+
+      fields.forEach(([field]) => {
+        const td = document.createElement('td');
+
+        const input = document.createElement('input');
+        input.className = 'qty';
+        input.type = 'number';
+        input.min = '0';
+        input.inputMode = 'numeric';
+        input.dataset.productId = product.product_id;
+        input.dataset.category = product.category;
+        input.dataset.field = field;
+        input.placeholder = '0';
+
+        td.appendChild(input);
+        tr.appendChild(td);
+      });
+
+      return tr;
+    }
+
+    function updateStockDisplays() {
+      Object.keys(stockMap).forEach(productId => {
+        const el = document.getElementById('stock_' + productId);
+        if (el) el.textContent = Number(stockMap[productId] || 0).toLocaleString();
+      });
+    }
+
+    function getProductsByCategory(category) {
+      return (appData.products || []).filter(p => p.category === category);
+    }
+
+    function getBranchId() {
+      return document.getElementById('branch').value;
+    }
+
+    function collectRows() {
+      const map = {};
+
+      document.querySelectorAll('input.qty').forEach(input => {
+        const value = Number(input.value || 0);
+        if (value <= 0) return;
+
+        const productId = input.dataset.productId;
+        const category = input.dataset.category;
+        const field = input.dataset.field;
+
+        if (!map[productId]) {
+          map[productId] = {
+            productId,
+            category
+          };
+        }
+
+        map[productId][field] = value;
+      });
+
+      return Object.values(map);
+    }
+
+    function buildPreview(payload) {
+      let totalAmount = 0;
+      let text = '';
+
+      const branchName =
+        appData.branches.find(b => b.branch_id === payload.branchId)?.branch_name ||
+        payload.branchId;
+
+      text += 'สาขา: ' + branchName + '\n';
+      text += 'ผู้บันทึก: ' + document.getElementById('recorderName').value + '\n\n';
+
+      const errors = [];
+
+      payload.rows.forEach(row => {
+        const product = appData.products.find(p => p.product_id === row.productId);
+        if (!product) return;
+
+        const current = Number(stockMap[row.productId] || 0);
+        const calc = calculateRowPreview(product, row);
+        const afterStock = current + calc.qtyIn - calc.qtyOut;
+
+        totalAmount += calc.amount;
+
+        if (afterStock < 0) {
+          errors.push(
+            product.product_name +
+            ' สต๊อกไม่พอ: คงเหลือ ' +
+            current +
+            ', ต้องออก ' +
+            calc.qtyOut +
+            ', หลังบันทึก ' +
+            afterStock
+          );
+        }
+
+        text += product.product_name + '\n';
+        if (calc.qtyIn > 0) text += '- เติม: ' + calc.qtyIn + '\n';
+        if (calc.saleText) text += calc.saleText;
+        if (calc.freeQty > 0) text += '- แถม: ' + calc.freeQty + '\n';
+        if (calc.damagedQty > 0) text += '- เสีย: ' + calc.damagedQty + '\n';
+        if (calc.tastingQty > 0) text += '- ชิม: ' + calc.tastingQty + '\n';
+
+        text += '- ตัดสต๊อกออก: ' + calc.qtyOut + '\n';
+        text += '- คงเหลือหลังบันทึก: ' + afterStock + '\n';
+        text += '- ยอดเงิน: ' + calc.amount.toLocaleString() + ' บาท\n\n';
+      });
+
+      text = 'ยอดขายจากรายการนี้: ' + totalAmount.toLocaleString() + ' บาท\n\n' + text;
+
+      if (errors.length) {
+        text =
+          'ไม่สามารถบันทึกได้\n\n' +
+          errors.join('\n') +
+          '\n\n' +
+          text;
+      }
+
+      return {
+        text,
+        totalAmount,
+        hasError: errors.length > 0
+      };
+    }
+
+    function calculateRowPreview(product, row) {
+      let qtyIn = Number(row.stockIn || 0);
+      let qtyOut = 0;
+      let amount = 0;
+      let saleText = '';
+      let freeQty = Number(row.freeQty || 0);
+      let damagedQty = Number(row.damagedQty || 0);
+      let tastingQty = Number(row.tastingQty || 0);
+
+      if (product.category === 'WATER') {
+        const saleNormal = Number(row.saleNormal || 0);
+        qtyOut += saleNormal + freeQty + damagedQty + tastingQty;
+        amount += saleNormal * Number(product.base_price || 0);
+
+        if (saleNormal > 0) {
+          saleText += '- ขาย: ' + saleNormal + '\n';
+        }
+      }
+
+      if (product.category === 'FRUIT') {
+        const saleRF = Number(row.saleRF || 0);
+        const saleRP = Number(row.saleRP || 0);
+        const saleR2 = Number(row.saleR2 || 0);
+
+        qtyOut += saleRF;
+        qtyOut += saleRP;
+        qtyOut += saleR2 * 2;
+        qtyOut += damagedQty;
+
+        amount += saleRF * 99;
+        amount += saleRP * 79;
+        amount += saleR2 * 129;
+
+        if (saleRF > 0) saleText += '- ขาย 99: ' + saleRF + '\n';
+        if (saleRP > 0) saleText += '- ขาย 79: ' + saleRP + '\n';
+        if (saleR2 > 0) saleText += '- แพ็คคู่ 129: ' + saleR2 + '\n';
+
+        freeQty = 0;
+        tastingQty = 0;
+      }
+
+      if (product.category === 'DIP') {
+        qtyOut += freeQty;
+        qtyIn = 0;
+        damagedQty = 0;
+        tastingQty = 0;
+        amount = 0;
+      }
+
+      return {
+        qtyIn,
+        qtyOut,
+        amount,
+        saleText,
+        freeQty,
+        damagedQty,
+        tastingQty
+      };
+    }
+
+    function openPreview() {
+      const rows = collectRows();
+
+      if (!getBranchId()) {
+        alert('กรุณาเลือกสาขา');
+        return;
+      }
+
+      if (!rows.length) {
+        alert('กรุณากรอกจำนวนอย่างน้อย 1 รายการ');
+        return;
+      }
+
+      pendingPayload = {
+        lineUserId,
+        branchId: getBranchId(),
+        rows,
+        note: document.getElementById('note').value || ''
+      };
+
+      const preview = buildPreview(pendingPayload);
+
+      document.getElementById('summaryText').textContent = preview.text;
+      document.getElementById('confirmBtn').disabled = preview.hasError;
+      document.getElementById('modalBackdrop').style.display = 'flex';
+    }
+
+    function closePreview() {
+      document.getElementById('modalBackdrop').style.display = 'none';
+    }
+
+    async function submitConfirmed() {
+      if (!pendingPayload) return;
+
+      const btn = document.getElementById('confirmBtn');
+      btn.disabled = true;
+      btn.textContent = 'กำลังบันทึก...';
+
+      try {
+        const data = await apiGet({
+          action: 'submitBulkV2',
+          payload: JSON.stringify(pendingPayload)
+        });
+
+        alert(data.message || 'เสร็จสิ้น');
+
+        if (data.ok) {
+          closePreview();
+          clearForm();
+          await loadStockMap();
+        } else {
+          btn.disabled = false;
+        }
+      } catch (err) {
+        showError(err);
+        btn.disabled = false;
+      } finally {
+        btn.textContent = 'ยืนยันบันทึก';
+      }
+    }
+
+    function clearForm() {
+      document.querySelectorAll('input.qty').forEach(input => {
+        input.value = '';
+      });
+      document.getElementById('note').value = '';
+      pendingPayload = null;
+    }
+
+    function setStatus(text) {
+      document.getElementById('status').textContent = text;
+    }
+
+    function showError(err) {
+      console.error(err);
+      alert('เกิดข้อผิดพลาด: ' + (err.message || JSON.stringify(err)));
+      setStatus('เกิดข้อผิดพลาด กรุณาลองใหม่');
+    }
+
+    main();
+  </script>
+</body>
+</html>
