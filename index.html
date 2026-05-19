@@ -437,26 +437,11 @@ async function main() {
 
 renderBranches();
 
-if (currentAction === 'stock') {
-  renderTables();
-  await loadStockMap();
-}
-
-if (currentAction === 'stockview') {
-  renderStockViewOnly();
-  await loadStockMap();
-}
-
-if (currentAction === 'sales') {
-  await renderSalesPage();
-  return;
-}
-
 if (currentAction === 'export') {
   await renderExportPage();
   return;
 }
-      
+
 if (currentAction === 'dashboard') {
   await renderDashboardPage();
   return;
@@ -464,6 +449,23 @@ if (currentAction === 'dashboard') {
 
 if (currentAction === 'users') {
   await renderUsersPage();
+  return;
+}
+
+if (currentAction === 'sales') {
+  await renderSalesPage();
+  return;
+}
+
+if (currentAction === 'stockview') {
+  renderStockViewOnly();
+  await loadStockMap();
+  return;
+}
+
+if (currentAction === 'stock') {
+  renderTables();
+  await loadStockMap();
   return;
 }
       
