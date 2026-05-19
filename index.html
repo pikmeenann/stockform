@@ -467,6 +467,11 @@ if (currentAction === 'export') {
   return;
 }
       
+if (currentAction === 'export') {
+  await renderExportPage();
+  return;
+}
+      
 if (currentAction === 'help') {
   renderHelpPage();
   return;
