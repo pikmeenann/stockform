@@ -1034,11 +1034,13 @@ async function renderDashboardPage() {
         </div>
       </div>
 
-      <h2 style="margin-top:18px;">แยกตามสาขา</h2>
-      html += `
-  <h2 style="margin-top:18px;">สินค้าใกล้หมด</h2>
-  <div id="lowStockBox" class="status">กำลังโหลด stock alert...</div>
-    `;
+<h2 style="margin-top:18px;">สินค้าใกล้หมด</h2>
+<div id="lowStockBox" class="status">
+กำลังโหลด stock alert...
+</div>
+
+<h2 style="margin-top:18px;">แยกตามสาขา</h2>
+`;
 
     data.rows.forEach(row => {
       html += `
