@@ -392,6 +392,7 @@ async function main() {
     await liff.init({ liffId: LIFF_ID });
 
     detectCurrentAction();
+    alert('MODE = ' + currentAction);
 
     if (currentAction === 'help') {
       renderHelpPage();
