@@ -1028,6 +1028,9 @@ async function renderDashboardPage() {
       </div>
 
       <h2 style="margin-top:18px;">แยกตามสาขา</h2>
+      html += `
+  <h2 style="margin-top:18px;">สินค้าใกล้หมด</h2>
+  <div id="lowStockBox" class="status">กำลังโหลด stock alert...</div>
     `;
 
     data.rows.forEach(row => {
@@ -1047,6 +1050,7 @@ async function renderDashboardPage() {
     });
 
     box.innerHTML = html;
+    await loadLowStockBox();
 
   } catch (err) {
     box.innerHTML = `
@@ -1201,6 +1205,48 @@ function progressHtml(percent) {
       <div class="progress-bar" style="width:${safePercent}%"></div>
     </div>
   `;
+}
+    async function loadLowStockBox() {
+  const box = document.getElementById('lowStockBox');
+  if (!box) return;
+
+  try {
+    const data = await apiGet({
+      action: 'lowStock',
+      lineUserId: lineUserId
+    });
+
+    if (!data.ok) {
+      box.textContent = data.message || 'โหลด stock alert ไม่สำเร็จ';
+      return;
+    }
+
+    if (!data.rows.length) {
+      box.textContent = 'ไม่มีสินค้าใกล้หมด';
+      return;
+    }
+
+    let text = '';
+    text += 'แจ้งเตือนสินค้าเหลือน้อยกว่า/เท่ากับ ';
+    text += data.threshold;
+    text += '\n\n';
+
+    data.rows.forEach(item => {
+      text += item.branch_name;
+      text += ' - ';
+      text += item.product_name;
+      text += ': ';
+      text += item.stock;
+      text += '\n';
+    });
+
+    box.textContent = text;
+
+  } catch (err) {
+    box.textContent =
+      'เกิดข้อผิดพลาด: ' +
+      (err.message || JSON.stringify(err));
+  }
 }
     main();
   </script>
