@@ -452,6 +452,11 @@ if (currentAction === 'sales') {
   return;
 }
 
+if (currentAction === 'export') {
+  await renderExportPage();
+  return;
+}
+      
 if (currentAction === 'dashboard') {
   await renderDashboardPage();
   return;
@@ -459,16 +464,6 @@ if (currentAction === 'dashboard') {
 
 if (currentAction === 'users') {
   await renderUsersPage();
-  return;
-}
-
-if (currentAction === 'export') {
-  await renderExportPage();
-  return;
-}
-      
-if (currentAction === 'export') {
-  await renderExportPage();
   return;
 }
       
