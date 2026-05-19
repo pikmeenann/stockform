@@ -350,29 +350,23 @@ async function main() {
 renderBranches();
 
 if (currentAction === 'stock') {
-
   renderTables();
   await loadStockMap();
-
 }
 
 if (currentAction === 'stockview') {
-
   renderStockViewOnly();
   await loadStockMap();
-
 }
 
 if (currentAction === 'sales') {
-
   renderSalesPage();
-
+  return;
 }
 
 if (currentAction === 'help') {
-
   renderHelpPage();
-
+  return;
 }
 
       setStatus(
