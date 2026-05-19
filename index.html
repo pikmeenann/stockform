@@ -1290,68 +1290,56 @@ function progressHtml(percent) {
     </div>
   `;
 }
-    async function exportSalesReport() {
-
-  const startDate =
-    document.getElementById('startDate').value;
-
-  const endDate =
-    document.getElementById('endDate').value;
-
-  const resultBox =
-    document.getElementById('exportResult');
+async function exportSalesReport() {
+  const startDate = document.getElementById('startDate').value;
+  const endDate = document.getElementById('endDate').value;
+  const resultBox = document.getElementById('exportResult');
 
   if (!startDate || !endDate) {
-    resultBox.textContent =
-      'กรุณาเลือกวันที่';
+    resultBox.textContent = 'กรุณาเลือกวันที่';
     return;
   }
 
-  resultBox.textContent =
-    'กำลังสร้างรายงาน...';
+  resultBox.textContent = 'กำลังสร้างรายงาน...';
 
   try {
+    const data = await apiGet({
+      action: 'exportSales',
+      lineUserId: lineUserId,
+      startDate: startDate,
+      endDate: endDate
+    });
 
-    const data =
-      await apiGet({
-        action: 'exportSales',
-        lineUserId: lineUserId,
-        startDate: startDate,
-        endDate: endDate
-      });
+    console.log('EXPORT RESULT', data);
 
     if (!data.ok) {
+      resultBox.textContent = data.message || 'สร้างรายงานไม่สำเร็จ';
+      return;
+    }
+
+    const count = data.count || 0;
+    const fileUrl = data.url || data.fileUrl || '';
+
+    if (!fileUrl) {
       resultBox.textContent =
-        data.message || 'ไม่สำเร็จ';
+        'สร้างรายงานแล้ว แต่ไม่พบ URL ไฟล์\n\n' +
+        JSON.stringify(data, null, 2);
       return;
     }
 
     resultBox.innerHTML = `
-      <div>
-        สร้างรายงานเรียบร้อย
-      </div>
-
-      <div>
-        จำนวนรายการ:
-        ${data.count}
-      </div>
-
+      <div>สร้างรายงานเรียบร้อย</div>
+      <div>จำนวนรายการ: ${count}</div>
       <br>
-
-      <a
-        href="${data.url}"
-        target="_blank"
-      >
-        เปิดไฟล์ Excel
+      <a href="${fileUrl}" target="_blank" rel="noopener">
+        เปิดไฟล์รายงาน
       </a>
     `;
 
   } catch (err) {
-
     resultBox.textContent =
       'เกิดข้อผิดพลาด: ' +
       (err.message || JSON.stringify(err));
-
   }
 }
     main();
