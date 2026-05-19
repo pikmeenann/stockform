@@ -1318,7 +1318,7 @@ async function exportSalesReport() {
     }
 
     const count = data.count || 0;
-    const fileUrl = data.url || data.fileUrl || '';
+    const fileUrl = data.xlsxUrl || data.url || data.fileUrl || '';
 
     if (!fileUrl) {
       resultBox.textContent =
