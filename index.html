@@ -190,6 +190,66 @@
       color: #6b7280;
       margin-top: 6px;
     }
+    .dashboard-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.metric-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.metric-title {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.metric-value {
+  font-size: 24px;
+  font-weight: bold;
+  margin-top: 4px;
+}
+
+.diff-plus {
+  color: #16a34a;
+  font-weight: bold;
+}
+
+.diff-minus {
+  color: #dc2626;
+  font-weight: bold;
+}
+
+.diff-zero {
+  color: #6b7280;
+  font-weight: bold;
+}
+
+.progress-wrap {
+  background: #e5e7eb;
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.progress-bar {
+  background: #06c755;
+  height: 10px;
+  border-radius: 999px;
+}
+
+.branch-card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 12px;
+  margin-top: 10px;
+}
   </style>
 </head>
 
@@ -916,9 +976,7 @@ async function renderDashboardPage() {
   document.body.innerHTML = `
     <div class="card">
       <h1>Dashboard</h1>
-      <div id="dashboardResult" class="status">
-        กำลังโหลดข้อมูล...
-      </div>
+      <div id="dashboardResult">กำลังโหลดข้อมูล...</div>
     </div>
   `;
 
@@ -931,65 +989,71 @@ async function renderDashboardPage() {
     });
 
     if (!data.ok) {
-      box.textContent = data.message || 'โหลดข้อมูลไม่สำเร็จ';
+      box.innerHTML = `<div class="status">${data.message || 'โหลดข้อมูลไม่สำเร็จ'}</div>`;
       return;
     }
 
-    let text = '';
+    const topBranch = [...data.rows].sort((a, b) => b.today_amount - a.today_amount)[0];
+    const lowBranch = [...data.rows].sort((a, b) => a.today_amount - b.today_amount)[0];
 
-    text += 'วันที่: ' + data.date + '\n';
-    text += 'เดือน: ' + data.month + '\n\n';
+    let html = `
+      <div class="small">วันที่ ${data.date} | เดือน ${data.month}</div>
 
-    text += 'ยอดขายวันนี้รวม: ';
-    text += Number(data.total_today || 0).toLocaleString();
-    text += ' บาท ';
-    text += formatDiff(data.total_diff);
-    text += '\n\n';
+      <div class="dashboard-grid">
+        <div class="metric-card">
+          <div class="metric-title">ยอดขายวันนี้รวม</div>
+          <div class="metric-value">${money(data.total_today)} บาท</div>
+          <div>${diffHtml(data.total_diff)}</div>
+        </div>
 
-    text += 'เป้าเดือนนี้รวม: ';
-    text += Number(data.total_month_target || 0).toLocaleString();
-    text += ' บาท\n';
+        <div class="metric-card">
+          <div class="metric-title">ยอดขายสะสมเดือนนี้</div>
+          <div class="metric-value">${money(data.total_month_sales)} บาท</div>
+          <div class="small">เป้า ${money(data.total_month_target)} บาท</div>
+          ${progressHtml(data.total_target_percent)}
+          <div class="small">ทำได้ ${data.total_target_percent || 0}% | เหลือ ${money(data.total_remain_to_target)} บาท</div>
+        </div>
 
-    text += 'ขายสะสมเดือนนี้: ';
-    text += Number(data.total_month_sales || 0).toLocaleString();
-    text += ' บาท\n';
+        <div class="metric-card">
+          <div class="metric-title">สาขายอดขายสูงสุดวันนี้</div>
+          <div class="metric-value">${topBranch ? topBranch.branch_name : '-'}</div>
+          <div class="small">${topBranch ? money(topBranch.today_amount) : 0} บาท</div>
+        </div>
 
-    text += 'เหลือถึงเป้า: ';
-    text += Number(data.total_remain_to_target || 0).toLocaleString();
-    text += ' บาท\n';
+        <div class="metric-card">
+          <div class="metric-title">สาขายอดขายต่ำสุดวันนี้</div>
+          <div class="metric-value">${lowBranch ? lowBranch.branch_name : '-'}</div>
+          <div class="small">${lowBranch ? money(lowBranch.today_amount) : 0} บาท</div>
+        </div>
+      </div>
 
-    text += 'ทำได้: ';
-    text += Number(data.total_target_percent || 0).toLocaleString();
-    text += '%\n\n';
-
-    text += 'แยกตามสาขา\n';
+      <h2 style="margin-top:18px;">แยกตามสาขา</h2>
+    `;
 
     data.rows.forEach(row => {
-      text += '\n' + row.branch_name + '\n';
-      text += '- วันนี้: ';
-      text += Number(row.today_amount || 0).toLocaleString();
-      text += ' บาท ';
-      text += formatDiff(row.diff);
-      text += '\n';
-
-      text += '- เดือนนี้: ';
-      text += Number(row.month_sales || 0).toLocaleString();
-      text += ' / ';
-      text += Number(row.month_target || 0).toLocaleString();
-      text += ' บาท';
-      text += ' (' + Number(row.target_percent || 0) + '%)\n';
-
-      text += '- เหลือถึงเป้า: ';
-      text += Number(row.remain_to_target || 0).toLocaleString();
-      text += ' บาท\n';
+      html += `
+        <div class="branch-card">
+          <b>${row.branch_name}</b>
+          <div>วันนี้: ${money(row.today_amount)} บาท ${diffHtml(row.diff)}</div>
+          <div class="small">
+            เดือนนี้: ${money(row.month_sales)} / ${money(row.month_target)} บาท
+          </div>
+          ${progressHtml(row.target_percent)}
+          <div class="small">
+            ทำได้ ${row.target_percent || 0}% | เหลือ ${money(row.remain_to_target)} บาท
+          </div>
+        </div>
+      `;
     });
 
-    box.textContent = text;
+    box.innerHTML = html;
 
   } catch (err) {
-    box.textContent =
-      'เกิดข้อผิดพลาด: ' +
-      (err.message || JSON.stringify(err));
+    box.innerHTML = `
+      <div class="status">
+        เกิดข้อผิดพลาด: ${err.message || JSON.stringify(err)}
+      </div>
+    `;
   }
 }
 
@@ -1110,6 +1174,33 @@ async function renderUsersPage() {
   } catch (err) {
     alert('เกิดข้อผิดพลาด: ' + (err.message || JSON.stringify(err)));
   }
+}
+    function money(value) {
+  return Number(value || 0).toLocaleString();
+}
+
+function diffHtml(value) {
+  const num = Number(value || 0);
+
+  if (num > 0) {
+    return `<span class="diff-plus">+${money(num)}</span>`;
+  }
+
+  if (num < 0) {
+    return `<span class="diff-minus">-${money(Math.abs(num))}</span>`;
+  }
+
+  return `<span class="diff-zero">+0</span>`;
+}
+
+function progressHtml(percent) {
+  const safePercent = Math.max(0, Math.min(Number(percent || 0), 100));
+
+  return `
+    <div class="progress-wrap">
+      <div class="progress-bar" style="width:${safePercent}%"></div>
+    </div>
+  `;
 }
     main();
   </script>
