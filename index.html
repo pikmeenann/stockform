@@ -936,22 +936,60 @@ async function renderDashboardPage() {
     }
 
     let text = '';
-    text += 'วันที่: ' + data.date + '\n\n';
-    text += 'ยอดขายวันนี้รวม: ' + Number(data.total_today).toLocaleString() + ' บาท\n';
-    text += 'เทียบเมื่อวาน: ' + formatDiff(data.total_diff) + '\n\n';
+
+    text += 'วันที่: ' + data.date + '\n';
+    text += 'เดือน: ' + data.month + '\n\n';
+
+    text += 'ยอดขายวันนี้รวม: ';
+    text += Number(data.total_today || 0).toLocaleString();
+    text += ' บาท ';
+    text += formatDiff(data.total_diff);
+    text += '\n\n';
+
+    text += 'เป้าเดือนนี้รวม: ';
+    text += Number(data.total_month_target || 0).toLocaleString();
+    text += ' บาท\n';
+
+    text += 'ขายสะสมเดือนนี้: ';
+    text += Number(data.total_month_sales || 0).toLocaleString();
+    text += ' บาท\n';
+
+    text += 'เหลือถึงเป้า: ';
+    text += Number(data.total_remain_to_target || 0).toLocaleString();
+    text += ' บาท\n';
+
+    text += 'ทำได้: ';
+    text += Number(data.total_target_percent || 0).toLocaleString();
+    text += '%\n\n';
+
     text += 'แยกตามสาขา\n';
 
     data.rows.forEach(row => {
-      text += row.branch_name + ': ';
-      text += Number(row.today_amount || 0).toLocaleString() + ' บาท ';
+      text += '\n' + row.branch_name + '\n';
+      text += '- วันนี้: ';
+      text += Number(row.today_amount || 0).toLocaleString();
+      text += ' บาท ';
       text += formatDiff(row.diff);
       text += '\n';
+
+      text += '- เดือนนี้: ';
+      text += Number(row.month_sales || 0).toLocaleString();
+      text += ' / ';
+      text += Number(row.month_target || 0).toLocaleString();
+      text += ' บาท';
+      text += ' (' + Number(row.target_percent || 0) + '%)\n';
+
+      text += '- เหลือถึงเป้า: ';
+      text += Number(row.remain_to_target || 0).toLocaleString();
+      text += ' บาท\n';
     });
 
     box.textContent = text;
 
   } catch (err) {
-    box.textContent = 'เกิดข้อผิดพลาด: ' + (err.message || JSON.stringify(err));
+    box.textContent =
+      'เกิดข้อผิดพลาด: ' +
+      (err.message || JSON.stringify(err));
   }
 }
 
