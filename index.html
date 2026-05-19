@@ -462,6 +462,11 @@ if (currentAction === 'users') {
   return;
 }
 
+if (currentAction === 'export') {
+  await renderExportPage();
+  return;
+}
+      
 if (currentAction === 'help') {
   renderHelpPage();
   return;
@@ -1246,6 +1251,102 @@ function progressHtml(percent) {
     box.textContent =
       'เกิดข้อผิดพลาด: ' +
       (err.message || JSON.stringify(err));
+  }
+}
+    async function renderExportPage() {
+
+  if (!['manager', 'owner'].includes(appData.user.role)) {
+    document.body.innerHTML = `
+      <div class="card">
+        <h1>ไม่มีสิทธิ์</h1>
+        <div class="status">
+          หน้านี้สำหรับหัวหน้า/เจ้าของเท่านั้น
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>Export รายงานยอดขาย</h1>
+
+      <label>วันที่เริ่มต้น</label>
+      <input type="date" id="startDate">
+
+      <label>วันที่สิ้นสุด</label>
+      <input type="date" id="endDate">
+
+      <button onclick="exportSalesReport()">
+        สร้างรายงาน Excel
+      </button>
+
+      <div id="exportResult" class="status"></div>
+    </div>
+  `;
+}
+    async function exportSalesReport() {
+
+  const startDate =
+    document.getElementById('startDate').value;
+
+  const endDate =
+    document.getElementById('endDate').value;
+
+  const resultBox =
+    document.getElementById('exportResult');
+
+  if (!startDate || !endDate) {
+    resultBox.textContent =
+      'กรุณาเลือกวันที่';
+    return;
+  }
+
+  resultBox.textContent =
+    'กำลังสร้างรายงาน...';
+
+  try {
+
+    const data =
+      await apiGet({
+        action: 'exportSales',
+        lineUserId: lineUserId,
+        startDate: startDate,
+        endDate: endDate
+      });
+
+    if (!data.ok) {
+      resultBox.textContent =
+        data.message || 'ไม่สำเร็จ';
+      return;
+    }
+
+    resultBox.innerHTML = `
+      <div>
+        สร้างรายงานเรียบร้อย
+      </div>
+
+      <div>
+        จำนวนรายการ:
+        ${data.count}
+      </div>
+
+      <br>
+
+      <a
+        href="${data.url}"
+        target="_blank"
+      >
+        เปิดไฟล์ Excel
+      </a>
+    `;
+
+  } catch (err) {
+
+    resultBox.textContent =
+      'เกิดข้อผิดพลาด: ' +
+      (err.message || JSON.stringify(err));
+
   }
 }
     main();
