@@ -388,7 +388,7 @@ if (currentAction === 'stockview') {
 }
 
 if (currentAction === 'sales') {
-  renderSalesPage();
+  await renderSalesPage();
   return;
 }
 
@@ -798,21 +798,76 @@ function renderStockViewOnly() {
 
 }
 
-function renderSalesPage() {
-
+async function renderSalesPage() {
   hideAllCards();
 
   document.body.innerHTML = `
     <div class="card">
       <h1>ยอดขายวันนี้</h1>
 
-      <div class="status">
-        ฟังก์ชันนี้กำลังพัฒนา
+      <label>สาขา</label>
+      <select id="salesBranch"></select>
+
+      <button onclick="loadTodaySales()">ดูยอดขาย</button>
+
+      <div id="salesResult" class="status" style="margin-top:12px;">
+        กรุณาเลือกสาขาแล้วกดดูยอดขาย
       </div>
     </div>
   `;
 
+  const select = document.getElementById('salesBranch');
+  select.innerHTML = '';
+
+  appData.branches.forEach(b => {
+    const option = document.createElement('option');
+    option.value = b.branch_id;
+    option.textContent = b.branch_name;
+    select.appendChild(option);
+  });
+
+  await loadTodaySales();
 }
+
+async function loadTodaySales() {
+  const branchId = document.getElementById('salesBranch').value;
+  const resultBox = document.getElementById('salesResult');
+
+  resultBox.textContent = 'กำลังโหลดยอดขาย...';
+
+  try {
+    const data = await apiGet({
+      action: 'todaySales',
+      lineUserId: lineUserId,
+      branchId: branchId
+    });
+
+    if (!data.ok) {
+      resultBox.textContent = data.message || 'ไม่สามารถโหลดข้อมูลได้';
+      return;
+    }
+
+    let text = '';
+    text += 'วันที่: ' + data.date + '\n\n';
+
+    data.rows.forEach(row => {
+      text += row.branch_name + ': ';
+      text += Number(row.amount || 0).toLocaleString();
+      text += ' บาท\n';
+    });
+
+    text += '\nรวมทั้งหมด: ';
+    text += Number(data.totalAmount || 0).toLocaleString();
+    text += ' บาท';
+
+    resultBox.textContent = text;
+
+  } catch (err) {
+    resultBox.textContent =
+      'เกิดข้อผิดพลาด: ' +
+      (err.message || JSON.stringify(err));
+  }
+}    
 
 function renderHelpPage() {
 
