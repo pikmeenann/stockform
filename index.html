@@ -292,11 +292,13 @@
     let appData = null;
     let stockMap = {};
     let pendingPayload = null;
-const currentAction =
-  window.location.hash
-    ? window.location.hash.replace('#', '')
-    : 'stock';
+const params = new URLSearchParams(window.location.search);
 
+const currentAction =
+  params.get('mode') ||
+  params.get('action') ||
+  (window.location.hash ? window.location.hash.replace('#', '') : '') ||
+  'stock';
     
     
 async function main() {
