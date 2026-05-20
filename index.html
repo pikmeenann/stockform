@@ -1097,27 +1097,7 @@ async function renderDashboardPage() {
   return '(+0)';
 }
     
-async function renderUsersPage() {
-  if (!['manager', 'owner'].includes(appData.user.role)) {
-    document.body.innerHTML = `
-      <div class="card">
-        <h1>ไม่มีสิทธิ์</h1>
-        <div class="status">หน้านี้สำหรับหัวหน้า/เจ้าของเท่านั้น</div>
-      </div>
-    `;
-    return;
-  }
-
-  document.body.innerHTML = `
-    <div class="card">
-      <h1>จัดการพนักงาน</h1>
-      <div id="usersBox" class="status">กำลังโหลดรายชื่อ...</div>
-    </div>
-  `;
-
-  await loadUsersPage();
-}
-    async function loadUsersPage() {
+async function loadUsersPage() {
   const box = document.getElementById('usersBox');
 
   try {
@@ -1131,51 +1111,95 @@ async function renderUsersPage() {
       return;
     }
 
+    const pendingUsers = data.users.filter(u => u.status === 'pending');
+    const activeUsers = data.users.filter(u => u.status === 'active');
+    const inactiveUsers = data.users.filter(u => u.status === 'inactive' || u.status === 'rejected');
+
     let html = '';
 
-    data.users.forEach(user => {
-      html += `
-        <div class="card" style="box-shadow:none;border:1px solid #e5e7eb;">
-          <b>${user.name || '-'}</b>
-          <div class="small">${user.line_user_id}</div>
-
-          <label>Role</label>
-          <select id="role_${user.line_user_id}">
-            <option value="staff" ${user.role === 'staff' ? 'selected' : ''}>staff</option>
-            <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>manager</option>
-            <option value="owner" ${user.role === 'owner' ? 'selected' : ''}>owner</option>
-          </select>
-
-          <label>สาขา</label>
-          <select id="branch_${user.line_user_id}">
-            <option value="ALL" ${user.branch_id === 'ALL' ? 'selected' : ''}>ALL</option>
-            ${data.branches.map(b => `
-              <option value="${b.branch_id}" ${user.branch_id === b.branch_id ? 'selected' : ''}>
-                ${b.branch_name}
-              </option>
-            `).join('')}
-          </select>
-
-          <label>Status</label>
-          <select id="status_${user.line_user_id}">
-            <option value="pending" ${user.status === 'pending' ? 'selected' : ''}>pending</option>
-            <option value="active" ${user.status === 'active' ? 'selected' : ''}>active</option>
-            <option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>inactive</option>
-            <option value="rejected" ${user.status === 'rejected' ? 'selected' : ''}>rejected</option>
-          </select>
-
-          <button onclick="saveUser('${user.line_user_id}')">บันทึกสิทธิ์</button>
-        </div>
-      `;
-    });
+    html += renderUserSection_('รออนุมัติ', pendingUsers, data.branches);
+    html += renderUserSection_('ใช้งานอยู่', activeUsers, data.branches);
+    html += renderUserSection_('ปิดใช้งาน', inactiveUsers, data.branches);
 
     box.className = '';
     box.innerHTML = html;
 
   } catch (err) {
-    box.textContent = 'เกิดข้อผิดพลาด: ' + (err.message || JSON.stringify(err));
+    box.textContent =
+      'เกิดข้อผิดพลาด: ' +
+      (err.message || JSON.stringify(err));
   }
 }
+
+    function renderUserSection_(title, users, branches) {
+  let html = `
+    <h2 style="margin-top:18px;">${title} (${users.length})</h2>
+  `;
+
+  if (!users.length) {
+    html += `
+      <div class="status">ไม่มีรายการ</div>
+    `;
+    return html;
+  }
+
+  users.forEach(user => {
+    html += renderUserCard_(user, branches);
+  });
+
+  return html;
+}
+
+    function renderUserCard_(user, branches) {
+  const safeId = user.line_user_id;
+
+  return `
+    <div class="card" style="box-shadow:none;border:1px solid #e5e7eb;">
+      <b>${user.name || '-'}</b>
+      <div class="small">${user.line_user_id}</div>
+
+      <label>Role</label>
+      <select id="role_${safeId}">
+        <option value="staff" ${user.role === 'staff' ? 'selected' : ''}>staff</option>
+        <option value="manager" ${user.role === 'manager' ? 'selected' : ''}>manager</option>
+        <option value="owner" ${user.role === 'owner' ? 'selected' : ''}>owner</option>
+      </select>
+
+      <label>สาขา</label>
+      <select id="branch_${safeId}">
+        <option value="ALL" ${user.branch_id === 'ALL' ? 'selected' : ''}>ALL</option>
+        ${branches.map(b => `
+          <option value="${b.branch_id}" ${user.branch_id === b.branch_id ? 'selected' : ''}>
+            ${b.branch_name}
+          </option>
+        `).join('')}
+      </select>
+
+      <label>Status</label>
+      <select id="status_${safeId}">
+        <option value="pending" ${user.status === 'pending' ? 'selected' : ''}>pending</option>
+        <option value="active" ${user.status === 'active' ? 'selected' : ''}>active</option>
+        <option value="inactive" ${user.status === 'inactive' ? 'selected' : ''}>inactive</option>
+        <option value="rejected" ${user.status === 'rejected' ? 'selected' : ''}>rejected</option>
+      </select>
+
+      <button onclick="saveUser('${safeId}')">
+        บันทึกสิทธิ์
+      </button>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px;">
+        <button onclick="quickSetUser('${safeId}', 'active')">
+          อนุมัติ
+        </button>
+
+        <button class="danger" onclick="quickSetUser('${safeId}', 'inactive')">
+          ระงับ
+        </button>
+      </div>
+    </div>
+  `;
+}
+    
     async function saveUser(targetLineUserId) {
   const payload = {
     actorLineUserId: lineUserId,
@@ -1228,6 +1252,21 @@ function progressHtml(percent) {
     </div>
   `;
 }
+async function quickSetUser(targetLineUserId, status) {
+  document.getElementById('status_' + targetLineUserId).value = status;
+
+  if (status === 'active') {
+    const roleEl = document.getElementById('role_' + targetLineUserId);
+    const branchEl = document.getElementById('branch_' + targetLineUserId);
+
+    if (!roleEl.value) roleEl.value = 'staff';
+    if (!branchEl.value) branchEl.value = 'LP';
+  }
+
+  await saveUser(targetLineUserId);
+}
+    
+    
     async function loadLowStockBox() {
   const box = document.getElementById('lowStockBox');
   if (!box) return;
