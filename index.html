@@ -1338,6 +1338,17 @@ async function quickSetUser(targetLineUserId, status) {
 
   if (!['manager', 'owner'].includes(appData.user.role)) {
     document.body.innerHTML = `
+    const today = new Date();
+
+const yyyy = today.getFullYear();
+const mm = String(today.getMonth() + 1).padStart(2, '0');
+const dd = String(today.getDate()).padStart(2, '0');
+
+document.getElementById('startDate').value =
+  `${yyyy}-${mm}-01`;
+
+document.getElementById('endDate').value =
+  `${yyyy}-${mm}-${dd}`;
       <div class="card">
         <h1>ไม่มีสิทธิ์</h1>
         <div class="status">
