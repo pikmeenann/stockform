@@ -264,6 +264,9 @@
     <label>สาขา</label>
     <select id="branch" onchange="loadStockMap()"></select>
 
+    <label>วันที่ทำรายการ</label>
+    <input type="date" id="entryDate">
+
     <div class="small">
       ระบบใช้ LINE UID ตรวจสิทธิ์ พนักงานจะเลือกได้เฉพาะสาขาตัวเอง
     </div>
@@ -437,6 +440,7 @@ async function main() {
       document.getElementById('recorderName').value = data.user.name || '';
 
 renderBranches();
+setDefaultEntryDate();
 
 if (currentAction === 'export') {
   await renderExportPage();
@@ -766,10 +770,17 @@ if (currentAction === 'help') {
     function openPreview() {
       const rows = collectRows();
 
-      if (!getBranchId()) {
-        alert('กรุณาเลือกสาขา');
-        return;
-      }
+     if (!getBranchId()) {
+       alert('กรุณาเลือกสาขา');
+      return;
+    }
+
+    const entryDate = document.getElementById('entryDate').value;
+
+    if (!entryDate) {
+      alert('กรุณาเลือกวันที่ทำรายการ');
+      return;
+    }
 
       if (!rows.length) {
         alert('กรุณากรอกจำนวนอย่างน้อย 1 รายการ');
@@ -777,11 +788,12 @@ if (currentAction === 'help') {
       }
 
       pendingPayload = {
-        lineUserId,
-        branchId: getBranchId(),
-        rows,
-        note: document.getElementById('note').value || ''
-      };
+  lineUserId,
+  branchId: getBranchId(),
+  entryDate: entryDate,
+  rows,
+  note: document.getElementById('note').value || ''
+};
 
       const preview = buildPreview(pendingPayload);
 
@@ -1341,6 +1353,17 @@ async function exportSalesReport() {
       'เกิดข้อผิดพลาด: ' +
       (err.message || JSON.stringify(err));
   }
+}
+    function setDefaultEntryDate() {
+  const el = document.getElementById('entryDate');
+  if (!el) return;
+
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+
+  el.value = `${yyyy}-${mm}-${dd}`;
 }
     main();
   </script>
