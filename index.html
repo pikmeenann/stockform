@@ -1074,7 +1074,7 @@ async function renderDashboardPage() {
           <div class="small">PO จริง ${money(data.total_po_sales)} บาท</div>
           <div class="small">ส่วนต่างบันทึก/PO ${formatPoDiff(data.total_po_diff)}</div>
           ${progressHtml(data.total_target_percent)}
-          <div class="small">ทำได้ ${data.total_target_percent || 0}% | เหลือ ${money(data.total_remain_to_target)} บาท</div>
+          <div class="small">PO ทำได้ ${data.total_target_percent || 0}% | เหลือถึงเป้า ${money(data.total_remain_to_target)} บาท</div>
         </div>
 
         <div class="metric-card">
@@ -1116,7 +1116,7 @@ async function renderDashboardPage() {
           </div>
           ${progressHtml(row.target_percent)}
           <div class="small">
-            ทำได้ ${row.target_percent || 0}% | เหลือ ${money(row.remain_to_target)} บาท
+            PO ทำได้ ${row.target_percent || 0}% | เหลือถึงเป้า ${money(row.remain_to_target)} บาท
           </div>
         </div>
       `;
