@@ -1071,6 +1071,8 @@ async function renderDashboardPage() {
           <div class="metric-title">ยอดขายสะสมเดือนนี้</div>
           <div class="metric-value">${money(data.total_month_sales)} บาท</div>
           <div class="small">เป้า ${money(data.total_month_target)} บาท</div>
+          <div class="small">PO จริง ${money(data.total_po_sales)} บาท</div>
+          <div class="small">ส่วนต่างบันทึก/PO ${formatPoDiff(data.total_po_diff)}</div>
           ${progressHtml(data.total_target_percent)}
           <div class="small">ทำได้ ${data.total_target_percent || 0}% | เหลือ ${money(data.total_remain_to_target)} บาท</div>
         </div>
@@ -1103,6 +1105,9 @@ async function renderDashboardPage() {
           <div>วันนี้: ${money(row.today_amount)} บาท ${diffHtml(row.diff)}</div>
           <div class="small">
             เดือนนี้: ${money(row.month_sales)} / ${money(row.month_target)} บาท
+          </div>
+          <div class="small">
+            PO จริง: ${money(row.po_sales)} บาท | ส่วนต่าง: ${formatPoDiff(row.po_diff)}
           </div>
           ${progressHtml(row.target_percent)}
           <div class="small">
@@ -1482,6 +1487,19 @@ async function exportSalesReport() {
   const dd = String(today.getDate()).padStart(2, '0');
 
   el.value = `${yyyy}-${mm}-${dd}`;
+}
+    function formatPoDiff(value) {
+  const num = Number(value || 0);
+
+  if (num > 0) {
+    return '+' + money(num) + ' บาท';
+  }
+
+  if (num < 0) {
+    return '-' + money(Math.abs(num)) + ' บาท';
+  }
+
+  return '0 บาท';
 }
     main();
   </script>
