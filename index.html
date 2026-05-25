@@ -1104,10 +1104,15 @@ async function renderDashboardPage() {
           <b>${row.branch_name}</b>
           <div>วันนี้: ${money(row.today_amount)} บาท ${diffHtml(row.diff)}</div>
           <div class="small">
-            เดือนนี้: ${money(row.month_sales)} / ${money(row.month_target)} บาท
+            ยอดบันทึกเดือนนี้: ${money(row.month_sales)} / ${money(row.month_target)} บาท
           </div>
+
           <div class="small">
-            PO จริง: ${money(row.po_sales)} บาท | ส่วนต่าง: ${formatPoDiff(row.po_diff)}
+            PO จริง: ${money(row.po_sales)} บาท
+          </div>
+
+          <div class="small">
+            ส่วนต่างบันทึก/PO: ${formatPoDiff(row.po_diff)}
           </div>
           ${progressHtml(row.target_percent)}
           <div class="small">
