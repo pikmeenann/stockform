@@ -386,7 +386,8 @@ td.product {
     let appData = null;
     let stockMap = {};
     let pendingPayload = null;
-let currentAction = 'stock';
+    let currentAction = 'stock';
+    let isSubmitting = false;
 
 function detectCurrentAction() {
   const searchParams = new URLSearchParams(window.location.search);
@@ -838,34 +839,43 @@ if (currentAction === 'help') {
     }
 
     async function submitConfirmed() {
-      if (!pendingPayload) return;
+  if (isSubmitting) {
+    return;
+  }
 
-      const btn = document.getElementById('confirmBtn');
-      btn.disabled = true;
-      btn.textContent = 'กำลังบันทึก...';
+  if (!pendingPayload) return;
 
-      try {
-        const data = await apiGet({
-          action: 'submitBulkV2',
-          payload: JSON.stringify(pendingPayload)
-        });
+  isSubmitting = true;
 
-        alert(data.message || 'เสร็จสิ้น');
+  const btn = document.getElementById('confirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'กำลังบันทึก...';
 
-        if (data.ok) {
-          closePreview();
-          clearForm();
-          await loadStockMap();
-        } else {
-          btn.disabled = false;
-        }
-      } catch (err) {
-        showError(err);
-        btn.disabled = false;
-      } finally {
-        btn.textContent = 'ยืนยันบันทึก';
-      }
+  try {
+    const data = await apiGet({
+      action: 'submitBulkV2',
+      payload: JSON.stringify(pendingPayload)
+    });
+
+    alert(data.message || 'เสร็จสิ้น');
+
+    if (data.ok) {
+      closePreview();
+      clearForm();
+      await loadStockMap();
+    } else {
+      btn.disabled = false;
     }
+
+  } catch (err) {
+    showError(err);
+    btn.disabled = false;
+
+  } finally {
+    isSubmitting = false;
+    btn.textContent = 'ยืนยันบันทึก';
+  }
+}
 
     function clearForm() {
       document.querySelectorAll('input.qty').forEach(input => {
