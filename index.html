@@ -923,7 +923,7 @@ async function renderDashboardPage() {
     });
 
     box.innerHTML = html;
-    await loadLowStockBox();
+    setTimeout(loadLowStockBox, 500);
 
   } catch (err) {
     box.innerHTML = `
@@ -1530,7 +1530,76 @@ function renderPreviewModal(data) {
   ).innerHTML = html;
 }
 
+async function submitConfirmed() {
 
+  if (isSubmitting) {
+    return;
+  }
+
+  if (!pendingPayload) {
+    alert('ไม่มีข้อมูลสำหรับบันทึก');
+    return;
+  }
+
+  try {
+
+    isSubmitting = true;
+
+    const btn =
+      document.getElementById('confirmBtn');
+
+    btn.disabled = true;
+    btn.textContent = 'กำลังบันทึก...';
+
+    const result = await apiGet({
+      action: 'submitBulkV2',
+      payload: JSON.stringify(pendingPayload)
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'ยืนยันบันทึก';
+
+    isSubmitting = false;
+
+    if (!result.ok) {
+      alert(result.message || 'บันทึกไม่สำเร็จ');
+      return;
+    }
+
+    closePreview();
+
+    alert(
+      'บันทึกเรียบร้อย\n\n' +
+      'ยอดขายรวม: ' +
+      Number(result.totalAmount || 0).toLocaleString() +
+      ' บาท'
+    );
+
+    clearForm();
+
+    await loadStockMap();
+
+  } catch (err) {
+
+    isSubmitting = false;
+
+    const btn =
+      document.getElementById('confirmBtn');
+
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'ยืนยันบันทึก';
+    }
+
+    showError(err);
+  }
+}
+
+    function closePreview() {
+  document.getElementById(
+    'modalBackdrop'
+  ).style.display = 'none';
+}
     
     main();
   </script>
