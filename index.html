@@ -1541,28 +1541,25 @@ async function submitConfirmed() {
     return;
   }
 
+  const btn =
+    document.getElementById('confirmBtn');
+
   try {
 
     isSubmitting = true;
 
-    const btn =
-      document.getElementById('confirmBtn');
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'กำลังบันทึก...';
+    }
 
-    btn.disabled = true;
-    btn.textContent = 'กำลังบันทึก...';
-
-    const result = await apiGet({
+    const data = await apiGet({
       action: 'submitBulkV2',
       payload: JSON.stringify(pendingPayload)
     });
 
-    btn.disabled = false;
-    btn.textContent = 'ยืนยันบันทึก';
-
-    isSubmitting = false;
-
-    if (!result.ok) {
-      alert(result.message || 'บันทึกไม่สำเร็จ');
+    if (!data.ok) {
+      alert(data.message || 'บันทึกไม่สำเร็จ');
       return;
     }
 
@@ -1571,7 +1568,7 @@ async function submitConfirmed() {
     alert(
       'บันทึกเรียบร้อย\n\n' +
       'ยอดขายรวม: ' +
-      Number(result.totalAmount || 0).toLocaleString() +
+      Number(data.totalAmount || 0).toLocaleString() +
       ' บาท'
     );
 
@@ -1581,17 +1578,16 @@ async function submitConfirmed() {
 
   } catch (err) {
 
-    isSubmitting = false;
+    showError(err);
 
-    const btn =
-      document.getElementById('confirmBtn');
+  } finally {
+
+    isSubmitting = false;
 
     if (btn) {
       btn.disabled = false;
       btn.textContent = 'ยืนยันบันทึก';
     }
-
-    showError(err);
   }
 }
 
