@@ -457,8 +457,9 @@ async function main() {
       setStatus('กำลังโหลดข้อมูลผู้ใช้งาน...');
 
       const data = await apiGet({
-        action: 'appData',
-        lineUserId: lineUserId
+      action: 'appDataV2',
+      lineUserId: lineUserId,
+      branchId: getBranchId ? getBranchId() : ''
       });
 
       if (!data.ok) {
@@ -494,14 +495,14 @@ if (currentAction === 'sales') {
 }
 
 if (currentAction === 'stockview') {
+  stockMap = data.stockMap || {};
   renderStockViewOnly();
-  await loadStockMap();
   return;
 }
 
 if (currentAction === 'stock') {
+  stockMap = data.stockMap || {};
   renderTables();
-  await loadStockMap();
   return;
 }
       
