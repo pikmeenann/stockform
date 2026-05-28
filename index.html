@@ -675,207 +675,25 @@ if (currentAction === 'help') {
       return Object.values(map);
     }
 
-    function buildPreview(payload) {
-      let totalAmount = 0;
-      let text = '';
+    
 
-      const branchName =
-        appData.branches.find(b => b.branch_id === payload.branchId)?.branch_name ||
-        payload.branchId;
-
-      text += 'สาขา: ' + branchName + '\n';
-      text += 'ผู้บันทึก: ' + document.getElementById('recorderName').value + '\n\n';
-
-      const errors = [];
-
-      payload.rows.forEach(row => {
-        const product = appData.products.find(p => p.product_id === row.productId);
-        if (!product) return;
-
-        const current = Number(stockMap[row.productId] || 0);
-        const calc = calculateRowPreview(product, row);
-        const afterStock = current + calc.qtyIn - calc.qtyOut;
-
-        totalAmount += calc.amount;
-
-        if (afterStock < 0) {
-          errors.push(
-            product.product_name +
-            ' สต๊อกไม่พอ: คงเหลือ ' +
-            current +
-            ', ต้องออก ' +
-            calc.qtyOut +
-            ', หลังบันทึก ' +
-            afterStock
-          );
-        }
-
-        text += product.product_name + '\n';
-        if (calc.qtyIn > 0) text += '- เติม: ' + calc.qtyIn + '\n';
-        if (calc.saleText) text += calc.saleText;
-        if (calc.freeQty > 0) text += '- แถม: ' + calc.freeQty + '\n';
-        if (calc.damagedQty > 0) text += '- เสีย: ' + calc.damagedQty + '\n';
-        if (calc.tastingQty > 0) text += '- ชิม: ' + calc.tastingQty + '\n';
-
-        text += '- ตัดสต๊อกออก: ' + calc.qtyOut + '\n';
-        text += '- คงเหลือหลังบันทึก: ' + afterStock + '\n';
-        text += '- ยอดเงิน: ' + calc.amount.toLocaleString() + ' บาท\n\n';
-      });
-
-      text = 'ยอดขายจากรายการนี้: ' + totalAmount.toLocaleString() + ' บาท\n\n' + text;
-
-      if (errors.length) {
-        text =
-          'ไม่สามารถบันทึกได้\n\n' +
-          errors.join('\n') +
-          '\n\n' +
-          text;
-      }
-
-      return {
-        text,
-        totalAmount,
-        hasError: errors.length > 0
-      };
+    function openPreview() { 
+      const rows = collectRows(); 
+      if (!getBranchId()) { alert('กรุณาเลือกสาขา'); 
+                           return; } 
+      const entryDate = document.getElementById('entryDate').value; 
+      if (!entryDate) { alert('กรุณาเลือกวันที่ทำรายการ'); 
+                       return; } 
+      if (!rows.length) { alert('กรุณากรอกจำนวนอย่างน้อย 1 รายการ'); 
+                         return; } pendingPayload = { lineUserId, branchId: getBranchId(), entryDate, rows, note: document.getElementById('note').value || '' }; 
+      try { const btn = document.getElementById('previewBtn'); btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ...'; 
+           const data = 
+             await apiGet({ action: 'previewBulkV2', payload: JSON.stringify(pendingPayload) }); btn.disabled = false; btn.textContent = 'ตรวจสอบก่อนบันทึก'; 
+           if (!data.ok) { alert(data.message || 'ตรวจสอบไม่สำเร็จ'); 
+                          return; } renderPreviewModal(data); document.getElementById( 'modalBackdrop' ).style.display = 'flex'; } 
+      catch (err) { 
+        const btn = document.getElementById('previewBtn'); btn.disabled = false; btn.textContent = 'ตรวจสอบก่อนบันทึก'; showError(err); } 
     }
-
-    function calculateRowPreview(product, row) {
-      let qtyIn = Number(row.stockIn || 0);
-      let qtyOut = 0;
-      let amount = 0;
-      let saleText = '';
-      let freeQty = Number(row.freeQty || 0);
-      let damagedQty = Number(row.damagedQty || 0);
-      let tastingQty = Number(row.tastingQty || 0);
-
-      if (product.category === 'WATER') {
-        const saleNormal = Number(row.saleNormal || 0);
-        qtyOut += saleNormal + freeQty + damagedQty + tastingQty;
-        amount += saleNormal * Number(product.base_price || 0);
-
-        if (saleNormal > 0) {
-          saleText += '- ขาย: ' + saleNormal + '\n';
-        }
-      }
-
-      if (product.category === 'FRUIT') {
-        const saleRF = Number(row.saleRF || 0);
-        const saleRP = Number(row.saleRP || 0);
-        const saleR2 = Number(row.saleR2 || 0);
-
-        qtyOut += saleRF;
-        qtyOut += saleRP;
-        qtyOut += saleR2 * 2;
-        qtyOut += damagedQty;
-
-        amount += saleRF * 99;
-        amount += saleRP * 79;
-        amount += saleR2 * 129;
-
-        if (saleRF > 0) saleText += '- ขาย 99: ' + saleRF + '\n';
-        if (saleRP > 0) saleText += '- ขาย 79: ' + saleRP + '\n';
-        if (saleR2 > 0) saleText += '- แพ็คคู่ 129: ' + saleR2 + '\n';
-
-        freeQty = 0;
-        tastingQty = 0;
-      }
-
-      if (product.category === 'DIP') {
-        qtyIn = Number(row.stockIn || 0);
-        qtyOut += freeQty;
-        damagedQty = 0;
-        tastingQty = 0;
-        amount = 0;
-      }
-
-      return {
-        qtyIn,
-        qtyOut,
-        amount,
-        saleText,
-        freeQty,
-        damagedQty,
-        tastingQty
-      };
-    }
-
-    function openPreview() {
-      const rows = collectRows();
-
-     if (!getBranchId()) {
-       alert('กรุณาเลือกสาขา');
-      return;
-    }
-
-    const entryDate = document.getElementById('entryDate').value;
-
-    if (!entryDate) {
-      alert('กรุณาเลือกวันที่ทำรายการ');
-      return;
-    }
-
-      if (!rows.length) {
-        alert('กรุณากรอกจำนวนอย่างน้อย 1 รายการ');
-        return;
-      }
-
-      pendingPayload = {
-  lineUserId,
-  branchId: getBranchId(),
-  entryDate: entryDate,
-  rows,
-  note: document.getElementById('note').value || ''
-};
-
-      const preview = buildPreview(pendingPayload);
-
-      document.getElementById('summaryText').textContent = preview.text;
-      document.getElementById('confirmBtn').disabled = preview.hasError;
-      document.getElementById('modalBackdrop').style.display = 'flex';
-    }
-
-    function closePreview() {
-      document.getElementById('modalBackdrop').style.display = 'none';
-    }
-
-    async function submitConfirmed() {
-  if (isSubmitting) {
-    return;
-  }
-
-  if (!pendingPayload) return;
-
-  isSubmitting = true;
-
-  const btn = document.getElementById('confirmBtn');
-  btn.disabled = true;
-  btn.textContent = 'กำลังบันทึก...';
-
-  try {
-    const data = await apiGet({
-      action: 'submitBulkV2',
-      payload: JSON.stringify(pendingPayload)
-    });
-
-    alert(data.message || 'เสร็จสิ้น');
-
-    if (data.ok) {
-      closePreview();
-      clearForm();
-      await loadStockMap();
-    } else {
-      btn.disabled = false;
-    }
-
-  } catch (err) {
-    showError(err);
-    btn.disabled = false;
-
-  } finally {
-    isSubmitting = false;
-    btn.textContent = 'ยืนยันบันทึก';
-  }
-}
 
     function clearForm() {
       document.querySelectorAll('input.qty').forEach(input => {
@@ -1506,6 +1324,144 @@ function formatPoDiff(value) {
 
   return '0 บาท';
 }
+
+function renderPreviewModal(data) {
+
+  let html = '';
+
+  html += `
+    <div style="
+      background:#f0fdf4;
+      border:1px solid #bbf7d0;
+      border-radius:14px;
+      padding:14px;
+      margin-bottom:14px;
+    ">
+      <div style="
+        font-size:13px;
+        color:#166534;
+      ">
+        ยอดขายรวม
+      </div>
+
+      <div style="
+        font-size:28px;
+        font-weight:bold;
+        color:#166534;
+        margin-top:4px;
+      ">
+        ${Number(data.totalAmount || 0).toLocaleString()} บาท
+      </div>
+    </div>
+  `;
+
+  html += `
+    <div style="
+      font-weight:bold;
+      margin-bottom:8px;
+    ">
+      รายการที่บันทึก
+    </div>
+  `;
+
+  data.summaryRows.forEach(row => {
+
+    html += `
+      <div style="
+        border:1px solid #e5e7eb;
+        border-radius:12px;
+        padding:10px;
+        margin-bottom:8px;
+      ">
+        <div style="font-weight:bold;">
+          ${row.product_name}
+        </div>
+
+        <div class="small">
+          ${row.movement_type}
+        </div>
+    `;
+
+    if (row.qty_out > 0) {
+      html += `
+        <div>
+          ตัดสต๊อก:
+          ${row.qty_out}
+        </div>
+      `;
+    }
+
+    if (row.sold_qty > 0) {
+      html += `
+        <div>
+          ขาย:
+          ${row.sold_qty}
+        </div>
+      `;
+    }
+
+    if (row.free_qty > 0) {
+      html += `
+        <div>
+          แถม:
+          ${row.free_qty}
+        </div>
+      `;
+    }
+
+    if (row.amount > 0) {
+      html += `
+        <div style="
+          margin-top:6px;
+          font-weight:bold;
+          color:#166534;
+        ">
+          ${Number(row.amount).toLocaleString()}
+          บาท
+        </div>
+      `;
+    }
+
+    html += `</div>`;
+  });
+
+  html += `
+    <div style="
+      margin-top:18px;
+      margin-bottom:8px;
+      font-weight:bold;
+    ">
+      สต๊อกคงเหลือหลังบันทึก
+    </div>
+  `;
+
+  data.stockRows.forEach(row => {
+
+    html += `
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        padding:8px 0;
+        border-bottom:1px solid #f3f4f6;
+      ">
+        <div>
+          ${row.product_name}
+        </div>
+
+        <div style="font-weight:bold;">
+          ${Number(row.stock_after || 0)
+            .toLocaleString()}
+        </div>
+      </div>
+    `;
+  });
+
+  document.getElementById(
+    'summaryText'
+  ).innerHTML = html;
+}
+
+    
     main();
   </script>
 </body>
