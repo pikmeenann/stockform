@@ -1461,6 +1461,229 @@ function renderPreviewModal(data) {
   ).innerHTML = html;
 }
 
+async function openPreview() {
+
+  const rows = collectRows();
+
+  if (!getBranchId()) {
+    alert('กรุณาเลือกสาขา');
+    return;
+  }
+
+  const entryDate =
+    document.getElementById('entryDate').value;
+
+  if (!entryDate) {
+    alert('กรุณาเลือกวันที่');
+    return;
+  }
+
+  if (!rows.length) {
+    alert('กรุณากรอกอย่างน้อย 1 รายการ');
+    return;
+  }
+
+  pendingPayload = {
+    lineUserId,
+    branchId: getBranchId(),
+    entryDate,
+    rows,
+    note:
+      document.getElementById('note').value || ''
+  };
+
+  try {
+
+    const btn =
+      document.getElementById('previewBtn');
+
+    btn.disabled = true;
+    btn.textContent = 'กำลังตรวจสอบ...';
+
+    const data = await apiGet({
+      action: 'previewBulkV2',
+      payload: JSON.stringify(pendingPayload)
+    });
+
+    btn.disabled = false;
+    btn.textContent = 'ตรวจสอบก่อนบันทึก';
+
+    if (!data.ok) {
+      alert(data.message || 'ตรวจสอบไม่สำเร็จ');
+      return;
+    }
+
+    renderPreviewModal(data);
+
+    document.getElementById(
+      'modalBackdrop'
+    ).style.display = 'flex';
+
+  } catch (err) {
+
+    const btn =
+      document.getElementById('previewBtn');
+
+    btn.disabled = false;
+    btn.textContent = 'ตรวจสอบก่อนบันทึก';
+
+    showError(err);
+  }
+}
+
+function renderPreviewModal(data) {
+
+  let html = '';
+
+  html += `
+    <div style="
+      background:#f0fdf4;
+      border:1px solid #bbf7d0;
+      border-radius:14px;
+      padding:14px;
+      margin-bottom:14px;
+    ">
+      <div style="
+        font-size:13px;
+        color:#166534;
+      ">
+        ยอดขายรวม
+      </div>
+
+      <div style="
+        font-size:28px;
+        font-weight:bold;
+        color:#166534;
+        margin-top:4px;
+      ">
+        ${Number(data.totalAmount || 0)
+          .toLocaleString()} บาท
+      </div>
+    </div>
+  `;
+
+  html += `
+    <div style="
+      font-weight:bold;
+      margin-bottom:8px;
+    ">
+      รายการที่บันทึก
+    </div>
+  `;
+
+  data.summaryRows.forEach(row => {
+
+    html += `
+      <div style="
+        border:1px solid #e5e7eb;
+        border-radius:12px;
+        padding:10px;
+        margin-bottom:8px;
+      ">
+        <div style="
+          font-weight:bold;
+        ">
+          ${row.product_name}
+        </div>
+
+        <div style="
+          font-size:12px;
+          color:#6b7280;
+          margin-top:4px;
+        ">
+          ${row.movement_type}
+        </div>
+    `;
+
+    if (row.qty_out > 0) {
+      html += `
+        <div>
+          ตัดสต๊อก:
+          ${row.qty_out}
+        </div>
+      `;
+    }
+
+    if (row.sold_qty > 0) {
+      html += `
+        <div>
+          ขาย:
+          ${row.sold_qty}
+        </div>
+      `;
+    }
+
+    if (row.free_qty > 0) {
+      html += `
+        <div>
+          แถม:
+          ${row.free_qty}
+        </div>
+      `;
+    }
+
+    if (row.amount > 0) {
+      html += `
+        <div style="
+          margin-top:6px;
+          font-weight:bold;
+          color:#166534;
+        ">
+          ${Number(row.amount)
+            .toLocaleString()}
+          บาท
+        </div>
+      `;
+    }
+
+    html += `
+      </div>
+    `;
+  });
+
+  html += `
+    <div style="
+      margin-top:18px;
+      margin-bottom:8px;
+      font-weight:bold;
+    ">
+      สต๊อกคงเหลือหลังบันทึก
+    </div>
+  `;
+
+  data.stockRows.forEach(row => {
+
+    const isLow =
+      Number(row.stock_after || 0) <= 3;
+
+    html += `
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        padding:8px 0;
+        border-bottom:1px solid #f3f4f6;
+      ">
+        <div>
+          ${row.product_name}
+        </div>
+
+        <div style="
+          font-weight:bold;
+          color:${isLow ? '#dc2626' : '#111827'};
+        ">
+          ${Number(row.stock_after || 0)
+            .toLocaleString()}
+        </div>
+      </div>
+    `;
+  });
+
+  document.getElementById(
+    'summaryText'
+  ).innerHTML = html;
+}
+
+
     
     main();
   </script>
