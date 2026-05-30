@@ -93,21 +93,6 @@
       white-space: pre-line;
     }
 
-.table-wrap {
-  width: 100%;
-  overflow-x: auto;
-  overflow-y: visible;
-  -webkit-overflow-scrolling: touch;
-  border: 1px solid #e5e7eb;
-  border-radius: 12px;
-}
-
-table {
-  width: max-content;
-  min-width: 100%;
-  border-collapse: collapse;
-  background: white;
-}
 
 th,
 td {
@@ -120,14 +105,6 @@ td.product {
   white-space: normal;
 }
 
-.qty {
-  width: 62px;
-  min-width: 62px;
-  height: 42px;
-  padding: 6px;
-  font-size: 16px;
-}
-
     .price {
       display: block;
       color: #6b7280;
@@ -135,24 +112,6 @@ td.product {
       font-size: 12px;
       margin-top: 2px;
     }
-
-    .mobile-product-list {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.mobile-product-row {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr 86px;
-  gap: 12px;
-  align-items: center;
-  padding: 12px;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  background: #fff;
-}
 
 .mobile-product-name {
   font-weight: bold;
@@ -175,15 +134,6 @@ td.product {
   font-size: 16px;
 }
 
-    .mobile-product-row::after {
-  content: "แถม";
-  position: absolute;
-  right: 100px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 12px;
-  color: #6b7280;
-}
 
     .summary {
       white-space: pre-line;
@@ -294,36 +244,89 @@ td.product {
   padding: 12px;
   margin-top: 10px;
 }
-    .table-wrap {
-  max-height: 70vh;
-  overflow: auto;
-  position: relative;
+
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  background: white;
+}
+
+th,
+td {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 8px;
+  text-align: center;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 th {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: #f9fafb;
-}
-
-th:first-child,
-td:first-child {
-  position: sticky;
-  left: 0;
-  z-index: 4;
-  background: #ffffff;
-}
-
-th:first-child {
-  z-index: 8;
   background: #f9fafb;
 }
 
 td.product {
-  left: 0;
-  background: #ffffff;
+  text-align: left;
+  min-width: 180px;
+  max-width: 180px;
+  white-space: normal;
+  font-weight: bold;
 }
+
+.qty {
+  width: 62px;
+  min-width: 62px;
+  height: 42px;
+  padding: 6px;
+  font-size: 16px;
+}
+
+.mobile-product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobile-product-row {
+  display: grid;
+  grid-template-columns: 1fr 90px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.mobile-product-name {
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.mobile-product-code {
+  display: block;
+  margin-top: 4px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.mobile-product-row input {
+  width: 90px;
+  height: 44px;
+  margin-top: 0;
+  text-align: center;
+  font-size: 16px;
+}
+    
   </style>
 </head>
 
@@ -385,11 +388,12 @@ td.product {
   </div>
 
   <div class="card">
-<h2>ผงจิ้ม</h2>
-<div id="dipRows" class="mobile-product-list"></div>
+  <h2>ผงจิ้ม</h2>
+  <div id="dipRows" class="mobile-product-list"></div>
+</div>
 
-  <div class="card">
-    <label>หมายเหตุรวม</label>
+<div class="card">
+  <label>หมายเหตุรวม</label>
     <textarea id="note" rows="2" placeholder="ใส่หมายเหตุถ้ามี"></textarea>
 
     <button id="previewBtn" onclick="openPreview()">ตรวจสอบก่อนบันทึก</button>
@@ -531,7 +535,10 @@ if (currentAction === 'stockview') {
 
 if (currentAction === 'stock') {
   stockMap = data.stockMap || {};
+
   renderTables();
+  updateStockDisplays();
+
   return;
 }
       
@@ -568,10 +575,13 @@ if (currentAction === 'help') {
           branchId: branchId
         });
 
-        if (data.ok) {
-          stockMap = data.stockMap || {};
-          updateStockDisplays();
-        }
+      if (data.ok) {
+        stockMap = data.stockMap || {};
+
+        updateStockDisplays();
+
+        renderDipRows();
+      }
       } catch (err) {
         showError(err);
       }
@@ -612,41 +622,49 @@ if (currentAction === 'help') {
     }
 
 function renderDipRows() {
-  const container = document.getElementById('dipRows');
+
+  const container =
+    document.getElementById('dipRows');
+
   container.innerHTML = '';
 
-  getProductsByCategory('DIP').forEach(p => {
+  getProductsByCategory('DIP')
+    .forEach(p => {
 
-    const stock =
-      Number(currentStock[p.product_id] || 0);
+      const stock =
+        Number(stockMap[p.product_id] || 0);
 
-    const row = document.createElement('div');
-    row.className = 'mobile-product-row';
+      const row =
+        document.createElement('div');
 
-    row.innerHTML = `
-      <div>
-        <div class="mobile-product-name">
-          ${p.product_name}
+      row.className =
+        'mobile-product-row';
+
+      row.innerHTML = `
+        <div>
+          <div class="mobile-product-name">
+            ${p.product_name}
+          </div>
+
+          <span class="mobile-product-code">
+            ${p.product_id} • คงเหลือ ${stock}
+          </span>
         </div>
 
-        <span class="mobile-product-code">
-          ${p.product_id}
-          • คงเหลือ ${stock}
-        </span>
-      </div>
+        <input
+          type="number"
+          min="0"
+          class="qty"
+          value=""
+          data-product-id="${p.product_id}"
+          data-category="${p.category}"
+          data-field="freeQty"
+          placeholder="แถม"
+        />
+      `;
 
-      <input
-        type="number"
-        min="0"
-        value="0"
-        class="qty"
-        data-product="${p.product_id}"
-        data-field="freeQty"
-      />
-    `;
-
-    container.appendChild(row);
-  });
+      container.appendChild(row);
+    });
 }
 
     function createRow(product, fields) {
@@ -706,28 +724,36 @@ function renderDipRows() {
     }
 
     function collectRows() {
-      const map = {};
+  const map = {};
 
-      document.querySelectorAll('input.qty').forEach(input => {
-        const value = Number(input.value || 0);
-        if (value <= 0) return;
+  document.querySelectorAll('input.qty').forEach(input => {
+    const value = Number(input.value || 0);
+    if (value <= 0) return;
 
-        const productId = input.dataset.productId;
-        const category = input.dataset.category;
-        const field = input.dataset.field;
+    const productId =
+      input.dataset.productId ||
+      input.dataset.product;
 
-        if (!map[productId]) {
-          map[productId] = {
-            productId,
-            category
-          };
-        }
+    const category =
+      input.dataset.category || '';
 
-        map[productId][field] = value;
-      });
+    const field =
+      input.dataset.field;
 
-      return Object.values(map);
+    if (!productId || !field) return;
+
+    if (!map[productId]) {
+      map[productId] = {
+        productId,
+        category
+      };
     }
+
+    map[productId][field] = value;
+  });
+
+  return Object.values(map);
+}
 
 
     function clearForm() {
