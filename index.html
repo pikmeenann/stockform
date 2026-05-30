@@ -310,7 +310,6 @@ td.product {
           <tr>
             <th>สินค้า</th>
             <th>คงเหลือ</th>
-            <th>เติม</th>
             <th>ขาย</th>
             <th>แถม</th>
             <th>เสีย</th>
@@ -330,7 +329,6 @@ td.product {
           <tr>
             <th>สินค้า</th>
             <th>คงเหลือ</th>
-            <th>เติม</th>
             <th>ขาย 99</th>
             <th>ขาย 79</th>
             <th>แพ็คคู่ 129</th>
@@ -350,7 +348,6 @@ td.product {
           <tr>
               <th>สินค้า</th>
               <th>คงเหลือ</th>
-              <th>เติม</th>
               <th>แถม</th>
           </tr>
         </thead>
@@ -560,7 +557,6 @@ if (currentAction === 'help') {
 
       getProductsByCategory('WATER').forEach(p => {
         tbody.appendChild(createRow(p, [
-          ['stockIn', 'เติม'],
           ['saleNormal', 'ขาย'],
           ['freeQty', 'แถม'],
           ['damagedQty', 'เสีย'],
@@ -575,7 +571,6 @@ if (currentAction === 'help') {
 
       getProductsByCategory('FRUIT').forEach(p => {
         tbody.appendChild(createRow(p, [
-          ['stockIn', 'เติม'],
           ['saleRF', '99'],
           ['saleRP', '79'],
           ['saleR2', 'คู่'],
@@ -590,7 +585,6 @@ if (currentAction === 'help') {
 
       getProductsByCategory('DIP').forEach(p => {
         tbody.appendChild(createRow(p, [
-          ['stockIn', 'เติม'],
           ['freeQty', 'แถม']
         ]));
       });
