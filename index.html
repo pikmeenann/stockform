@@ -11,6 +11,45 @@
       box-sizing: border-box;
     }
 
+.mobile-sale-card {
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.mobile-sale-head {
+  margin-bottom: 10px;
+}
+
+.mobile-input-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+
+.mobile-input-grid label {
+  margin-top: 0;
+  font-size: 12px;
+  color: #374151;
+  font-weight: bold;
+}
+
+.mobile-input-grid input {
+  width: 100%;
+  height: 42px;
+  margin-top: 5px;
+  padding: 6px;
+  font-size: 16px;
+  text-align: center;
+}
+
+@media (max-width: 390px) {
+  .mobile-input-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+    
     body {
       margin: 0;
       padding: 12px;
@@ -326,6 +365,7 @@ td.product {
   text-align: center;
   font-size: 16px;
 }
+
     
   </style>
 </head>
@@ -349,24 +389,10 @@ td.product {
     </div>
   </div>
 
-  <div class="card">
-    <h2>น้ำขวด</h2>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>สินค้า</th>
-            <th>คงเหลือ</th>
-            <th>ขาย</th>
-            <th>แถม</th>
-            <th>เสีย</th>
-            <th>ชิม</th>
-          </tr>
-        </thead>
-        <tbody id="waterRows"></tbody>
-      </table>
-    </div>
-  </div>
+<div class="card">
+  <h2>น้ำขวด</h2>
+  <div id="waterRows" class="mobile-product-list"></div>
+</div>
 
   <div class="card">
     <h2>ผลไม้พร้อมทาน</h2>
@@ -580,6 +606,7 @@ if (currentAction === 'help') {
 
         updateStockDisplays();
 
+        renderWaterRows();
         renderDipRows();
       }
       } catch (err) {
@@ -593,19 +620,102 @@ if (currentAction === 'help') {
       renderDipRows();
     }
 
-    function renderWaterRows() {
-      const tbody = document.getElementById('waterRows');
-      tbody.innerHTML = '';
+function renderWaterRows() {
 
-      getProductsByCategory('WATER').forEach(p => {
-        tbody.appendChild(createRow(p, [
-          ['saleNormal', 'ขาย'],
-          ['freeQty', 'แถม'],
-          ['damagedQty', 'เสีย'],
-          ['tastingQty', 'ชิม']
-        ]));
-      });
-    }
+  const container =
+    document.getElementById('waterRows');
+
+  container.innerHTML = '';
+
+  getProductsByCategory('WATER')
+    .forEach(p => {
+
+      const stock =
+        Number(stockMap[p.product_id] || 0);
+
+      const row =
+        document.createElement('div');
+
+      row.className =
+        'mobile-sale-card';
+
+      row.innerHTML = `
+        <div class="mobile-sale-head">
+          <div>
+            <div class="mobile-product-name">
+              ${p.product_name}
+            </div>
+
+            <span class="mobile-product-code">
+              ${p.product_id}
+              / ${Number(p.base_price || 0).toLocaleString()} บาท
+              • คงเหลือ ${stock}
+            </span>
+          </div>
+        </div>
+
+        <div class="mobile-input-grid">
+          <label>
+            ขาย
+            <input
+              type="number"
+              min="0"
+              class="qty"
+              value=""
+              data-product-id="${p.product_id}"
+              data-category="${p.category}"
+              data-field="saleNormal"
+              placeholder="0"
+            />
+          </label>
+
+          <label>
+            แถม
+            <input
+              type="number"
+              min="0"
+              class="qty"
+              value=""
+              data-product-id="${p.product_id}"
+              data-category="${p.category}"
+              data-field="freeQty"
+              placeholder="0"
+            />
+          </label>
+
+          <label>
+            เสีย
+            <input
+              type="number"
+              min="0"
+              class="qty"
+              value=""
+              data-product-id="${p.product_id}"
+              data-category="${p.category}"
+              data-field="damagedQty"
+              placeholder="0"
+            />
+          </label>
+
+          <label>
+            ชิม
+            <input
+              type="number"
+              min="0"
+              class="qty"
+              value=""
+              data-product-id="${p.product_id}"
+              data-category="${p.category}"
+              data-field="tastingQty"
+              placeholder="0"
+            />
+          </label>
+        </div>
+      `;
+
+      container.appendChild(row);
+    });
+}
 
     function renderFruitRows() {
       const tbody = document.getElementById('fruitRows');
