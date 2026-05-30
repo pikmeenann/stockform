@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 12px;
+      background: #f6f6f6;
+    }
+
+    .box {
+      background: white;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    label {
+      font-size: 14px;
+      font-weight: bold;
+    }
+
+    select, input {
+      width: 100%;
+      box-sizing: border-box;
+      padding: 10px;
+      font-size: 16px;
+      margin-top: 6px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      font-size: 14px;
+    }
+
+    th {
+      background: #eeeeee;
+      padding: 8px 4px;
+      position: sticky;
+      top: 0;
+      z-index: 2;
+    }
+
+    td {
+      border-bottom: 1px solid #eee;
+      padding: 8px 4px;
+      text-align: center;
+    }
+
+    td:first-child {
+      text-align: left;
+      font-weight: bold;
+    }
+
+    .qty-input {
+      width: 70px;
+      text-align: center;
+      padding: 8px;
+    }
+
+    .btn {
+      width: 100%;
+      padding: 14px;
+      font-size: 18px;
+      font-weight: bold;
+      border: none;
+      border-radius: 10px;
+      background: #0a7cff;
+      color: white;
+      margin-top: 12px;
+    }
+
+    .btn:disabled {
+      background: #999;
+    }
+
+    .muted {
+      color: #888;
+      font-size: 13px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 20px;
+      color: #777;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div class="box">
+    <h2>เติมสินค้า</h2>
+
+    <label>สาขา</label>
+    <select id="branchId" onchange="loadData()">
+      <option value="">เลือกสาขา</option>
+      <option value="LP">ลาดพร้าว</option>
+      <option value="PK">ปิ่นเกล้า</option>
+      <option value="EV">อีสท์วิลล์</option>
+      <option value="R9">พระราม 9</option>
+      <option value="R2">พระราม 2</option>
+      <option value="BN">บางนา</option>
+      <option value="CL">ชิดลม</option>
+      <option value="R3">พระราม 3</option>
+    </select>
+
+    <label style="display:block; margin-top:12px;">ชื่อผู้สั่ง</label>
+    <input id="staffName" type="text" placeholder="กรอกชื่อผู้สั่ง">
+  </div>
+
+  <div class="box">
+    <div id="tableArea" class="loading">
+      กรุณาเลือกสาขา
+    </div>
+  </div>
+
+  <button class="btn" id="submitBtn" onclick="submitRestock()" disabled>
+    ส่งคำขอเติม
+  </button>
+
+<script>
+  let restockItems = [];
+
+  function loadData() {
+    const branchId = document.getElementById('branchId').value;
+    const tableArea = document.getElementById('tableArea');
+    const submitBtn = document.getElementById('submitBtn');
+
+    submitBtn.disabled = true;
+    restockItems = [];
+
+    if (!branchId) {
+      tableArea.innerHTML = 'กรุณาเลือกสาขา';
+      return;
+    }
+
+    tableArea.innerHTML = 'กำลังโหลดข้อมูล...';
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        restockItems = data || [];
+        renderTable();
+      })
+      .withFailureHandler(function(err) {
+        tableArea.innerHTML = 'โหลดข้อมูลไม่สำเร็จ: ' + err.message;
+      })
+      .getRestockData(branchId);
+  }
+
+  function renderTable() {
+    const tableArea = document.getElementById('tableArea');
+    const submitBtn = document.getElementById('submitBtn');
+
+    if (!restockItems.length) {
+      tableArea.innerHTML = 'ไม่พบข้อมูลสินค้าในสาขานี้';
+      submitBtn.disabled = true;
+      return;
+    }
+
+    let html = `
+      <table>
+        <thead>
+          <tr>
+            <th>สินค้า</th>
+            <th>คงเหลือ</th>
+            <th>ขั้นต่ำ</th>
+            <th>เติม</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    restockItems.forEach(function(item, index) {
+      html += `
+        <tr>
+          <td>${item.product_id}</td>
+          <td>${item.current_stock}</td>
+          <td>${item.min_qty || '-'}</td>
+          <td>
+            <input 
+              class="qty-input" 
+              type="number" 
+              min="0" 
+              inputmode="numeric"
+              id="qty_${index}" 
+              placeholder="0">
+          </td>
+        </tr>
+      `;
+    });
+
+    html += `
+        </tbody>
+      </table>
+      <div class="muted" style="margin-top:10px;">
+        ระบบจะส่งเฉพาะรายการที่กรอกจำนวนมากกว่า 0
+      </div>
+    `;
+
+    tableArea.innerHTML = html;
+    submitBtn.disabled = false;
+  }
+
+  function submitRestock() {
+    const branchId = document.getElementById('branchId').value;
+    const staffName = document.getElementById('staffName').value.trim();
+    const submitBtn = document.getElementById('submitBtn');
+
+    if (!branchId) {
+      alert('กรุณาเลือกสาขา');
+      return;
+    }
+
+    if (!staffName) {
+      alert('กรุณากรอกชื่อผู้สั่ง');
+      return;
+    }
+
+    const items = [];
+
+    restockItems.forEach(function(item, index) {
+      const qty = Number(document.getElementById('qty_' + index).value || 0);
+
+      if (qty > 0) {
+        items.push({
+          product_id: item.product_id,
+          current_stock: item.current_stock,
+          min_qty: item.min_qty || '',
+          requested_qty: qty
+        });
+      }
+    });
+
+    if (!items.length) {
+      alert('กรุณากรอกจำนวนเติมอย่างน้อย 1 รายการ');
+      return;
+    }
+
+    const confirmText = items.map(function(item) {
+      return item.product_id + ' เติม ' + item.requested_qty;
+    }).join('\n');
+
+    if (!confirm('ยืนยันส่งคำขอเติม?\n\n' + confirmText)) {
+      return;
+    }
+
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'กำลังส่ง...';
+
+    google.script.run
+      .withSuccessHandler(function(res) {
+        alert('ส่งคำขอเติมสำเร็จ');
+        submitBtn.innerText = 'ส่งคำขอเติม';
+        loadData();
+      })
+      .withFailureHandler(function(err) {
+        alert('ส่งไม่สำเร็จ: ' + err.message);
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'ส่งคำขอเติม';
+      })
+      .submitRestockRequest({
+        branch_id: branchId,
+        staff_name: staffName,
+        items: items
+      });
+  }
+</script>
+
+</body>
+</html>
