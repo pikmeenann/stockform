@@ -128,13 +128,6 @@ td.product {
   font-size: 16px;
 }
 
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 720px;
-      background: white;
-    }
-
     .price {
       display: block;
       color: #6b7280;
@@ -143,11 +136,54 @@ td.product {
       margin-top: 2px;
     }
 
-    .qty {
-      width: 64px;
-      padding: 8px;
-      font-size: 14px;
-    }
+    .mobile-product-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.mobile-product-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 86px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.mobile-product-name {
+  font-weight: bold;
+  font-size: 15px;
+}
+
+.mobile-product-code {
+  display: block;
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 13px;
+  font-weight: normal;
+}
+
+.mobile-product-row input {
+  width: 86px;
+  height: 44px;
+  margin-top: 0;
+  text-align: center;
+  font-size: 16px;
+}
+
+    .mobile-product-row::after {
+  content: "แถม";
+  position: absolute;
+  right: 100px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #6b7280;
+}
 
     .summary {
       white-space: pre-line;
@@ -349,20 +385,8 @@ td.product {
   </div>
 
   <div class="card">
-    <h2>ผงจิ้ม</h2>
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr>
-              <th>สินค้า</th>
-              <th>คงเหลือ</th>
-              <th>แถม</th>
-          </tr>
-        </thead>
-        <tbody id="dipRows"></tbody>
-      </table>
-    </div>
-  </div>
+<h2>ผงจิ้ม</h2>
+<div id="dipRows" class="mobile-product-list"></div>
 
   <div class="card">
     <label>หมายเหตุรวม</label>
@@ -587,16 +611,43 @@ if (currentAction === 'help') {
       });
     }
 
-    function renderDipRows() {
-      const tbody = document.getElementById('dipRows');
-      tbody.innerHTML = '';
+function renderDipRows() {
+  const container = document.getElementById('dipRows');
+  container.innerHTML = '';
 
-      getProductsByCategory('DIP').forEach(p => {
-        tbody.appendChild(createRow(p, [
-          ['freeQty', 'แถม']
-        ]));
-      });
-    }
+  getProductsByCategory('DIP').forEach(p => {
+
+    const stock =
+      Number(currentStock[p.product_id] || 0);
+
+    const row = document.createElement('div');
+    row.className = 'mobile-product-row';
+
+    row.innerHTML = `
+      <div>
+        <div class="mobile-product-name">
+          ${p.product_name}
+        </div>
+
+        <span class="mobile-product-code">
+          ${p.product_id}
+          • คงเหลือ ${stock}
+        </span>
+      </div>
+
+      <input
+        type="number"
+        min="0"
+        value="0"
+        class="qty"
+        data-product="${p.product_id}"
+        data-field="freeQty"
+      />
+    `;
+
+    container.appendChild(row);
+  });
+}
 
     function createRow(product, fields) {
       const tr = document.createElement('tr');
