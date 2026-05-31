@@ -1576,17 +1576,26 @@ const productSelect =
 }
     
 async function exportSalesReport() {
-  const startDate = document.getElementById('startDate').value;
-  const endDate = document.getElementById('endDate').value;
+  const startDate =
+    document.getElementById('startDate').value;
+
+  const endDate =
+    document.getElementById('endDate').value;
+
   const branchId =
-  document.getElementById('exportBranch').value;
+    document.getElementById('exportBranch').value;
 
-const movementType =
-  document.getElementById('exportMovement').value;
+  const movementType =
+    document.getElementById('exportMovement').value;
 
-const productId =
-  document.getElementById('exportProduct').value;
-  const resultBox = document.getElementById('exportResult');
+  const productId =
+    document.getElementById('exportProduct').value;
+
+  const resultBox =
+    document.getElementById('exportResult');
+
+  const button =
+    document.querySelector('button[onclick="exportSalesReport()"]');
 
   if (!startDate || !endDate) {
     resultBox.textContent = 'กรุณาเลือกวันที่';
@@ -1595,29 +1604,45 @@ const productId =
 
   resultBox.textContent = 'กำลังสร้างรายงาน...';
 
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'กำลังสร้างรายงาน...';
+  }
+
   try {
     const data = await apiGet({
-  action: 'exportSales',
-  lineUserId: lineUserId,
-  startDate: startDate,
-  endDate: endDate,
-
-  branchId: branchId,
-  movementType: movementType,
-  productId: productId
-});
+      action: 'exportSales',
+      lineUserId: lineUserId,
+      startDate: startDate,
+      endDate: endDate,
+      branchId: branchId,
+      movementType: movementType,
+      productId: productId
+    });
 
     console.log('EXPORT RESULT', data);
 
     if (!data.ok) {
-      resultBox.textContent = data.message || 'สร้างรายงานไม่สำเร็จ';
+      resultBox.textContent =
+        data.message || 'สร้างรายงานไม่สำเร็จ';
       return;
     }
 
-    const count = data.count || 0;
-    const fileUrl = data.xlsxUrl || data.url || data.fileUrl || '';
+    const count =
+      Number(data.count || 0);
 
-    if (!fileUrl) {
+    const exportSeconds =
+      data.exportSeconds !== undefined
+        ? Number(data.exportSeconds).toFixed(1)
+        : '-';
+
+    const sheetUrl =
+      data.url || '';
+
+    const xlsxUrl =
+      data.xlsxUrl || '';
+
+    if (!sheetUrl && !xlsxUrl) {
       resultBox.textContent =
         'สร้างรายงานแล้ว แต่ไม่พบ URL ไฟล์\n\n' +
         JSON.stringify(data, null, 2);
@@ -1625,20 +1650,43 @@ const productId =
     }
 
     resultBox.innerHTML = `
-      <div>สร้างรายงานเรียบร้อย</div>
-      <div>จำนวนรายการ: ${count}</div>
+      <div><b>สร้างรายงานเรียบร้อย</b></div>
+      <div>จำนวนรายการ: ${count.toLocaleString()}</div>
+      <div>ใช้เวลา: ${exportSeconds} วินาที</div>
       <br>
-      <a href="${fileUrl}" target="_blank" rel="noopener">
-        เปิดไฟล์รายงาน
-      </a>
+
+      ${
+        sheetUrl
+          ? `<a href="${sheetUrl}" target="_blank" rel="noopener">
+              เปิด Google Sheet
+            </a>`
+          : ''
+      }
+
+      <br>
+
+      ${
+        xlsxUrl
+          ? `<a href="${xlsxUrl}" target="_blank" rel="noopener">
+              ดาวน์โหลด Excel
+            </a>`
+          : ''
+      }
     `;
 
   } catch (err) {
     resultBox.textContent =
       'เกิดข้อผิดพลาด: ' +
       (err.message || JSON.stringify(err));
+
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'สร้างรายงาน Excel';
+    }
   }
 }
+    
     function setDefaultEntryDate() {
   const el = document.getElementById('entryDate');
   if (!el) return;
