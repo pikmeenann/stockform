@@ -2461,11 +2461,13 @@ async function loadRestockData() {
   await loadStaffByBranchFromLiff(branchId);
 
   const data = await apiGet({
-    action: 'restockData',
-    branchId: branchId
-  });
+  action: 'restockData',
+  branchId: branchId
+});
 
-  if (!data.ok) {
+console.log('RESTOCK DATA', data);
+
+if (!data.ok) {
   tableArea.innerHTML =
     data.message || 'โหลดข้อมูลไม่สำเร็จ';
   return;
@@ -2475,8 +2477,6 @@ restockItems =
   data.items || [];
 
 renderRestockTable();
-
-  renderRestockTable();
 }
 
 async function loadStaffByBranchFromLiff(branchId) {
