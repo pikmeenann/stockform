@@ -1148,6 +1148,11 @@ async function renderDashboardPage() {
     const lowBranch =
       [...data.rows].sort((a, b) => a.today_amount - b.today_amount)[0];
 
+    const topTargetBranch =
+      [...data.rows]
+        .filter(row => Number(row.month_target || 0) > 0)
+        .sort((a, b) => Number(b.target_percent || 0) - Number(a.target_percent || 0))[0];
+  
     let html = `
       <div class="small">วันที่ ${data.date} | เดือน ${data.month}</div>
 
@@ -1184,8 +1189,17 @@ async function renderDashboardPage() {
         </div>
       </div>
 
+      <div class="metric-card">
+          <div class="metric-title">สาขาใกล้ถึงเป้าที่สุด</div>
+          <div class="metric-value">${topTargetBranch ? topTargetBranch.branch_name : '-'}</div>
+          <div class="small">${topTargetBranch ? topTargetBranch.target_percent : 0}%</div>
+        </div>
+
       <h2 style="margin-top:18px;">Top 10 สินค้าขายดีเดือนนี้</h2>
       ${renderTopProductsBlock(data.top_products || [])}
+
+      <h2 style="margin-top:18px;">Top 10 สินค้าขายช้าสุดเดือนนี้</h2>
+      ${renderTopProductsBlock(data.worst_products || [])}
 
       <h2 style="margin-top:18px;">พฤติกรรมสินค้าแยกตามสาขาเดือนนี้</h2>
 
