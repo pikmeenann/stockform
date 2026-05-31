@@ -1497,6 +1497,26 @@ async function renderExportPage() {
       <label>วันที่สิ้นสุด</label>
       <input type="date" id="endDate">
 
+<label>สาขา</label>
+<select id="exportBranch">
+  <option value="ALL">ทุกสาขา</option>
+</select>
+
+<label>ประเภทรายการ</label>
+<select id="exportMovement">
+  <option value="ALL">ทั้งหมด</option>
+  <option value="SALE">ขาย</option>
+  <option value="FREE">แถม</option>
+  <option value="WASTE">เสีย</option>
+  <option value="TASTE">ชิม</option>
+  <option value="RESTOCK">เติม</option>
+</select>
+
+<label>สินค้า</label>
+<select id="exportProduct">
+  <option value="ALL">ทุกสินค้า</option>
+</select>
+
       <button onclick="exportSalesReport()">
         สร้างรายงาน Excel
       </button>
@@ -1516,11 +1536,56 @@ async function renderExportPage() {
 
   document.getElementById('endDate').value =
     `${yyyy}-${mm}-${dd}`;
+
+  const branchSelect =
+  document.getElementById('exportBranch');
+
+(appData.branches || []).forEach(branch => {
+
+  const option =
+    document.createElement('option');
+
+  option.value =
+    branch.branch_id;
+
+  option.textContent =
+    branch.branch_name;
+
+  branchSelect.appendChild(option);
+
+});
+
+
+const productSelect =
+  document.getElementById('exportProduct');
+
+(appData.products || []).forEach(product => {
+
+  const option =
+    document.createElement('option');
+
+  option.value =
+    product.product_id;
+
+  option.textContent =
+    product.product_name;
+
+  productSelect.appendChild(option);
+
+});
 }
     
 async function exportSalesReport() {
   const startDate = document.getElementById('startDate').value;
   const endDate = document.getElementById('endDate').value;
+  const branchId =
+  document.getElementById('exportBranch').value;
+
+const movementType =
+  document.getElementById('exportMovement').value;
+
+const productId =
+  document.getElementById('exportProduct').value;
   const resultBox = document.getElementById('exportResult');
 
   if (!startDate || !endDate) {
@@ -1532,11 +1597,15 @@ async function exportSalesReport() {
 
   try {
     const data = await apiGet({
-      action: 'exportSales',
-      lineUserId: lineUserId,
-      startDate: startDate,
-      endDate: endDate
-    });
+  action: 'exportSales',
+  lineUserId: lineUserId,
+  startDate: startDate,
+  endDate: endDate,
+
+  branchId: branchId,
+  movementType: movementType,
+  productId: productId
+});
 
     console.log('EXPORT RESULT', data);
 
