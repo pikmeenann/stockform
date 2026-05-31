@@ -1209,6 +1209,9 @@ async function renderDashboardPage() {
       </select>
       <div id="branchTopProductBox"></div>
 
+      <h2 style="margin-top:18px;">รายการผิดปกติ</h2>
+      ${renderAnomalyAlertsBlock(data.anomaly_alerts || [])}
+
       <h2 style="margin-top:18px;">ยอดขายย้อนหลัง 30 วัน</h2>
       ${renderDailyTrendBlock(data.daily_trend || [])}
 
@@ -2276,6 +2279,54 @@ async function submitConfirmed() {
   html += `</div>`;
 
   box.innerHTML = html;
+}
+
+    function renderAnomalyAlertsBlock(rows) {
+  if (!rows || !rows.length) {
+    return `
+      <div class="status">
+        ไม่พบรายการผิดปกติวันนี้
+      </div>
+    `;
+  }
+
+  let html = '';
+
+  rows.forEach(function(row) {
+    html += `
+      <div style="
+        border:1px solid #fecaca;
+        background:#fef2f2;
+        border-radius:14px;
+        padding:12px;
+        margin-bottom:10px;
+      ">
+        <div style="
+          font-weight:bold;
+          color:#991b1b;
+          margin-bottom:4px;
+        ">
+          ⚠️ ${row.title || 'รายการผิดปกติ'}
+        </div>
+
+        <div style="font-size:14px;">
+          <b>${row.branch_name || '-'}</b>
+        </div>
+
+        <div class="small">
+          วันนี้: ${Number(row.today_value || 0).toLocaleString()}
+          |
+          ค่าเฉลี่ย: ${Number(row.average_value || 0).toLocaleString()}
+        </div>
+
+        <div class="small">
+          ${row.message || ''}
+        </div>
+      </div>
+    `;
+  });
+
+  return html;
 }
     
     main();
