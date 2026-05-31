@@ -529,6 +529,11 @@ if (currentAction === 'dashboard') {
   return;
 }
 
+if (currentAction === 'restock') {
+  await renderRestockPage();
+  return;
+}
+
 if (currentAction === 'users') {
   await renderUsersPage();
   return;
@@ -2368,6 +2373,276 @@ function renderAnomalyAlertsBlock(rows) {
     async function changeDashboardMonth(monthKey) {
   window.selectedDashboardMonth = monthKey;
   await renderDashboardPage();
+}
+
+let restockItems = [];
+
+async function renderRestockPage() {
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>เติมสินค้า</h1>
+
+      <label>สาขา</label>
+      <select id="branchId" onchange="loadRestockData()">
+        <option value="">เลือกสาขา</option>
+      </select>
+
+      <label>ชื่อผู้สั่ง</label>
+      <select id="staffName">
+        <option value="">เลือกผู้สั่ง</option>
+      </select>
+
+      <label>วันที่ต้องการรับสินค้า</label>
+      <input id="requestedDeliveryDate" type="date">
+
+      <div id="tableArea" class="status" style="margin-top:12px;">
+        กรุณาเลือกสาขา
+      </div>
+
+      <button id="submitBtn" onclick="submitRestockFromLiff()" disabled>
+        ส่งคำขอเติม
+      </button>
+    </div>
+  `;
+
+  const branchSelect =
+    document.getElementById('branchId');
+
+  (appData.branches || []).forEach(function(branch) {
+    const option =
+      document.createElement('option');
+
+    option.value =
+      branch.branch_id;
+
+    option.textContent =
+      branch.branch_name;
+
+    branchSelect.appendChild(option);
+  });
+}
+
+async function loadRestockData() {
+  const branchId =
+    document.getElementById('branchId').value;
+
+  const tableArea =
+    document.getElementById('tableArea');
+
+  const submitBtn =
+    document.getElementById('submitBtn');
+
+  submitBtn.disabled = true;
+  restockItems = [];
+
+  if (!branchId) {
+    tableArea.innerHTML = 'กรุณาเลือกสาขา';
+    return;
+  }
+
+  tableArea.innerHTML = 'กำลังโหลดข้อมูล...';
+
+  await loadStaffByBranchFromLiff(branchId);
+
+  const data = await apiGet({
+    action: 'restockData',
+    branchId: branchId
+  });
+
+  restockItems = data || [];
+
+  renderRestockTable();
+}
+
+async function loadStaffByBranchFromLiff(branchId) {
+  const staffSelect =
+    document.getElementById('staffName');
+
+  staffSelect.innerHTML =
+    '<option value="">กำลังโหลดรายชื่อ...</option>';
+
+  const data = await apiGet({
+    action: 'staffByBranch',
+    branchId: branchId
+  });
+
+  staffSelect.innerHTML =
+    '<option value="">เลือกชื่อผู้สั่ง</option>';
+
+  (data.staff || []).forEach(function(staff) {
+    const option =
+      document.createElement('option');
+
+    option.value =
+      staff.name;
+
+    option.textContent =
+      staff.name;
+
+    staffSelect.appendChild(option);
+  });
+}
+
+function renderRestockTable() {
+  const tableArea =
+    document.getElementById('tableArea');
+
+  const submitBtn =
+    document.getElementById('submitBtn');
+
+  if (!restockItems.length) {
+    tableArea.innerHTML = 'ไม่พบข้อมูลสินค้าในสาขานี้';
+    submitBtn.disabled = true;
+    return;
+  }
+
+  let html = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>สินค้า</th>
+            <th>คงเหลือ</th>
+            <th>ขั้นต่ำ</th>
+            <th>เติม</th>
+            <th>หมายเหตุ</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  restockItems.forEach(function(item, index) {
+    html += `
+      <tr>
+        <td class="product">
+          ${item.product_name || item.product_id}
+          <div class="small">${item.product_id}</div>
+        </td>
+        <td>${item.current_stock}</td>
+        <td>${item.min_qty || '-'}</td>
+        <td>
+          <input
+            id="qty_${index}"
+            type="number"
+            min="0"
+            inputmode="numeric"
+            style="width:70px;">
+        </td>
+        <td>
+          <input
+            id="remark_${index}"
+            type="text"
+            placeholder="หมายเหตุ"
+            style="width:90px;">
+        </td>
+      </tr>
+    `;
+  });
+
+  html += `
+        </tbody>
+      </table>
+    </div>
+
+    <div class="small" style="margin-top:10px;">
+      ระบบจะส่งเฉพาะรายการที่กรอกจำนวนมากกว่า 0
+    </div>
+  `;
+
+  tableArea.innerHTML = html;
+  submitBtn.disabled = false;
+}
+
+async function submitRestockFromLiff() {
+  const branchId =
+    document.getElementById('branchId').value;
+
+  const staffName =
+    document.getElementById('staffName').value.trim();
+
+  const requestedDeliveryDate =
+    document.getElementById('requestedDeliveryDate').value;
+
+  const submitBtn =
+    document.getElementById('submitBtn');
+
+  if (!branchId) {
+    alert('กรุณาเลือกสาขา');
+    return;
+  }
+
+  if (!staffName) {
+    alert('กรุณาเลือกชื่อผู้สั่ง');
+    return;
+  }
+
+  if (!requestedDeliveryDate) {
+    alert('กรุณาเลือกวันที่ต้องการรับสินค้า');
+    return;
+  }
+
+  const items = [];
+
+  restockItems.forEach(function(item, index) {
+    const qty =
+      Number(document.getElementById('qty_' + index).value || 0);
+
+    if (qty > 0) {
+      items.push({
+        product_id: item.product_id,
+        product_name: item.product_name || item.product_id,
+        current_stock: item.current_stock,
+        min_qty: item.min_qty || '',
+        requested_qty: qty,
+        remark: document.getElementById('remark_' + index).value.trim()
+      });
+    }
+  });
+
+  if (!items.length) {
+    alert('กรุณากรอกจำนวนเติมอย่างน้อย 1 รายการ');
+    return;
+  }
+
+  const confirmText =
+    items.map(function(item) {
+      return item.product_id + ' เติม ' + item.requested_qty;
+    }).join('\\n');
+
+  if (!confirm('ยืนยันส่งคำขอเติม?\\n\\n' + confirmText)) {
+    return;
+  }
+
+  submitBtn.disabled = true;
+  submitBtn.textContent = 'กำลังส่ง...';
+
+  try {
+    const data = await apiGet({
+      action: 'submitRestock',
+      payload: JSON.stringify({
+        branch_id: branchId,
+        staff_name: staffName,
+        requested_delivery_date: requestedDeliveryDate,
+        items: items
+      })
+    });
+
+    if (!data.ok) {
+      alert(data.message || 'ส่งคำขอเติมไม่สำเร็จ');
+      submitBtn.disabled = false;
+      submitBtn.textContent = 'ส่งคำขอเติม';
+      return;
+    }
+
+    alert('ส่งคำขอเติมสำเร็จ');
+    submitBtn.textContent = 'ส่งคำขอเติม';
+    await loadRestockData();
+
+  } catch (err) {
+    alert('ส่งไม่สำเร็จ: ' + (err.message || err));
+    submitBtn.disabled = false;
+    submitBtn.textContent = 'ส่งคำขอเติม';
+  }
 }
     
     main();
