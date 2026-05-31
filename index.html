@@ -1201,6 +1201,9 @@ async function renderDashboardPage() {
       <h2 style="margin-top:18px;">Top 10 สินค้าขายช้าสุดเดือนนี้</h2>
       ${renderTopProductsBlock(data.worst_products || [])}
 
+      <h2 style="margin-top:18px;">ยอดขายย้อนหลัง 30 วัน</h2>
+      ${renderDailyTrendBlock(data.daily_trend || [])}
+
       <h2 style="margin-top:18px;">พฤติกรรมสินค้าแยกตามสาขาเดือนนี้</h2>
 
       <div class="dashboard-grid">
@@ -1322,6 +1325,68 @@ function renderQtyRankingBlock(title, rows) {
       ">
         <span>${index + 1}. ${row.name}</span>
         <b>${Number(row.qty || 0).toLocaleString()}</b>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+
+  return html;
+}
+
+    function renderDailyTrendBlock(rows) {
+  if (!rows || !rows.length) {
+    return `<div class="status">ไม่มีข้อมูลยอดขายย้อนหลัง</div>`;
+  }
+
+  const maxAmount =
+    Math.max.apply(
+      null,
+      rows.map(row => Number(row.amount || 0))
+    ) || 1;
+
+  let html = `
+    <div class="metric-card">
+  `;
+
+  rows.forEach(function(row) {
+    const amount =
+      Number(row.amount || 0);
+
+    const percent =
+      Math.max(
+        2,
+        Math.round((amount / maxAmount) * 100)
+      );
+
+    const label =
+      String(row.date || '').slice(5);
+
+    html += `
+      <div style="margin-bottom:8px;">
+        <div style="
+          display:flex;
+          justify-content:space-between;
+          font-size:12px;
+          margin-bottom:3px;
+        ">
+          <span>${label}</span>
+          <b>${money(amount)}</b>
+        </div>
+
+        <div style="
+          background:#e5e7eb;
+          border-radius:999px;
+          overflow:hidden;
+          height:8px;
+        ">
+          <div style="
+            width:${percent}%;
+            height:8px;
+            background:#06c755;
+            border-radius:999px;
+          "></div>
+        </div>
       </div>
     `;
   });
