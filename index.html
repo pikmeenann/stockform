@@ -1273,6 +1273,24 @@ initBranchTopProducts();
   }
 }
 
+    function formatShortDate(dateText) {
+  const text =
+    String(dateText || '').trim();
+
+  if (!text) {
+    return '-';
+  }
+
+  const parts =
+    text.split('-');
+
+  if (parts.length !== 3) {
+    return text;
+  }
+
+  return parts[2] + '/' + parts[1];
+}
+
     function renderTopProductsBlock(rows) {
   if (!rows || !rows.length) {
     return `<div class="status">ยังไม่มีข้อมูลสินค้าเดือนนี้</div>`;
@@ -2281,11 +2299,11 @@ async function submitConfirmed() {
   box.innerHTML = html;
 }
 
-    function renderAnomalyAlertsBlock(rows) {
+function renderAnomalyAlertsBlock(rows) {
   if (!rows || !rows.length) {
     return `
       <div class="status">
-        ไม่พบรายการผิดปกติวันนี้
+        ไม่พบรายการผิดปกติวันนี้/เมื่อวาน
       </div>
     `;
   }
@@ -2310,17 +2328,19 @@ async function submitConfirmed() {
         </div>
 
         <div style="font-size:14px;">
-        <b>${row.branch_name || '-'}</b>
-      </div>
-
-<div class="small">
-  วันที่: ${row.date || '-'}
-</div>
+          <b>${row.branch_name || '-'}</b>
+        </div>
 
         <div class="small">
-          วันนี้: ${Number(row.today_value || 0).toLocaleString()}
+          วันที่: ${formatShortDate(row.date)}
+        </div>
+
+        <div class="small">
+          วันนี้/วันนั้น:
+          ${Number(row.today_value || 0).toLocaleString()}
           |
-          ค่าเฉลี่ย: ${Number(row.average_value || 0).toLocaleString()}
+          ค่าเฉลี่ย:
+          ${Number(row.average_value || 0).toLocaleString()}
         </div>
 
         <div class="small">
