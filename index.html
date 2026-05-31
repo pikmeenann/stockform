@@ -1201,6 +1201,14 @@ async function renderDashboardPage() {
       <h2 style="margin-top:18px;">Top 10 สินค้าขายช้าสุดเดือนนี้</h2>
       ${renderTopProductsBlock(data.worst_products || [])}
 
+      <h2 style="margin-top:18px;">Top Product by Branch</h2>
+        <select
+        id="branchTopProductSelect"
+        onchange="renderBranchTopProducts(this.value)"
+        >
+      </select>
+      <div id="branchTopProductBox"></div>
+
       <h2 style="margin-top:18px;">ยอดขายย้อนหลัง 30 วัน</h2>
       ${renderDailyTrendBlock(data.daily_trend || [])}
 
@@ -1249,6 +1257,9 @@ async function renderDashboardPage() {
     });
 
     box.innerHTML = html;
+    window.dashboardData = data;
+
+initBranchTopProducts();
 
   } catch (err) {
     box.innerHTML = `
@@ -2186,7 +2197,86 @@ async function submitConfirmed() {
     'modalBackdrop'
   ).style.display = 'none';
 }
-    
+
+    function initBranchTopProducts() {
+
+  const select =
+    document.getElementById(
+      'branchTopProductSelect'
+    );
+
+  const data =
+    window.dashboardData;
+
+  const map =
+    data.branch_top_products || {};
+
+  Object.keys(map).forEach(branchName => {
+
+    const option =
+      document.createElement('option');
+
+    option.value = branchName;
+
+    option.textContent = branchName;
+
+    select.appendChild(option);
+
+  });
+
+  if (select.options.length) {
+    renderBranchTopProducts(
+      select.options[0].value
+    );
+  }
+}
+
+    function renderBranchTopProducts(
+  branchName
+) {
+  const box =
+    document.getElementById(
+      'branchTopProductBox'
+    );
+
+  const rows =
+    (
+      window.dashboardData
+        .branch_top_products || {}
+    )[branchName] || [];
+
+  let html = `
+    <div class="metric-card">
+  `;
+
+  rows.forEach((row, index) => {
+
+    html += `
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        padding:6px 0;
+        border-bottom:1px solid #eee;
+      ">
+        <span>
+          ${index + 1}.
+          ${row.product_name}
+        </span>
+
+        <b>
+          ${Number(
+            row.sold_qty || 0
+          ).toLocaleString()}
+        </b>
+      </div>
+    `;
+
+  });
+
+  html += `</div>`;
+
+  box.innerHTML = html;
+}
     
     main();
   </script>
