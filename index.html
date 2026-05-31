@@ -2465,7 +2465,16 @@ async function loadRestockData() {
     branchId: branchId
   });
 
-  restockItems = data || [];
+  if (!data.ok) {
+  tableArea.innerHTML =
+    data.message || 'โหลดข้อมูลไม่สำเร็จ';
+  return;
+}
+
+restockItems =
+  data.items || [];
+
+renderRestockTable();
 
   renderRestockTable();
 }
