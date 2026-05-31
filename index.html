@@ -2310,8 +2310,12 @@ async function submitConfirmed() {
         </div>
 
         <div style="font-size:14px;">
-          <b>${row.branch_name || '-'}</b>
-        </div>
+        <b>${row.branch_name || '-'}</b>
+      </div>
+
+<div class="small">
+  วันที่: ${row.date || '-'}
+</div>
 
         <div class="small">
           วันนี้: ${Number(row.today_value || 0).toLocaleString()}
