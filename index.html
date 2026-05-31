@@ -435,7 +435,8 @@ td.product {
     let isSubmitting = false;
 
 function detectCurrentAction() {
-  const searchParams = new URLSearchParams(window.location.search);
+  const searchParams =
+    new URLSearchParams(window.location.search);
 
   let mode =
     searchParams.get('mode') ||
@@ -443,27 +444,42 @@ function detectCurrentAction() {
     '';
 
   if (!mode && window.location.hash) {
-    mode = window.location.hash.replace('#', '');
+    mode =
+      window.location.hash.replace('#', '');
   }
 
-  try {
-    const context = liff.getContext();
-    const state = context && context.liff && context.liff.state
-      ? decodeURIComponent(context.liff.state)
-      : '';
+  if (!mode) {
+    try {
+      const context =
+        liff.getContext();
 
-    if (state) {
-      const cleanState = state.replace(/^\?/, '');
-      const stateParams = new URLSearchParams(cleanState);
+      const state =
+        context &&
+        context.liff &&
+        context.liff.state
+          ? decodeURIComponent(context.liff.state)
+          : '';
 
-      mode =
-        stateParams.get('mode') ||
-        stateParams.get('action') ||
-        mode;
-    }
-  } catch (err) {}
+      if (state) {
+        const cleanState =
+          state.replace(/^\?/, '');
 
-  currentAction = mode || 'stock';
+        const stateParams =
+          new URLSearchParams(cleanState);
+
+        mode =
+          stateParams.get('mode') ||
+          stateParams.get('action') ||
+          '';
+      }
+
+    } catch (err) {}
+  }
+
+  currentAction =
+    mode || 'stock';
+
+  console.log('currentAction =', currentAction);
 }
     
     
