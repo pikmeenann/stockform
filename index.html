@@ -1132,10 +1132,14 @@ async function renderDashboardPage() {
   const box = document.getElementById('dashboardResult');
 
   try {
-    const data = await apiGet({
-      action: 'dashboard',
-      lineUserId: lineUserId
-    });
+    const selectedMonth =
+  window.selectedDashboardMonth || '';
+
+const data = await apiGet({
+  action: 'dashboard',
+  lineUserId: lineUserId,
+  monthKey: selectedMonth
+});
 
     if (!data.ok) {
       box.innerHTML = `<div class="status">${data.message || 'โหลดข้อมูลไม่สำเร็จ'}</div>`;
@@ -1154,7 +1158,16 @@ async function renderDashboardPage() {
         .sort((a, b) => Number(b.target_percent || 0) - Number(a.target_percent || 0))[0];
   
     let html = `
-      <div class="small">วันที่ ${data.date} | เดือน ${data.month}</div>
+  <div class="small">วันที่ ${data.date} | เดือน ${data.month}</div>
+
+  <label style="margin-top:12px;">เลือกเดือน</label>
+  <select id="dashboardMonthSelect" onchange="changeDashboardMonth(this.value)">
+    ${(data.available_months || []).map(month => `
+      <option value="${month}" ${month === data.month ? 'selected' : ''}>
+        ${month}
+      </option>
+    `).join('')}
+  </select>
 
       <div class="dashboard-grid">
         <div class="metric-card">
@@ -2351,6 +2364,10 @@ function renderAnomalyAlertsBlock(rows) {
   });
 
   return html;
+}
+    async function changeDashboardMonth(monthKey) {
+  window.selectedDashboardMonth = monthKey;
+  await renderDashboardPage();
 }
     
     main();
