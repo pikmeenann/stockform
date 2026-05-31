@@ -1124,7 +1124,7 @@ async function renderDashboardPage() {
 
   document.body.innerHTML = `
     <div class="card">
-      <h1>Dashboard</h1>
+      <h1>Dashboard Premium</h1>
       <div id="dashboardResult">กำลังโหลดข้อมูล...</div>
     </div>
   `;
@@ -1142,8 +1142,11 @@ async function renderDashboardPage() {
       return;
     }
 
-    const topBranch = [...data.rows].sort((a, b) => b.today_amount - a.today_amount)[0];
-    const lowBranch = [...data.rows].sort((a, b) => a.today_amount - b.today_amount)[0];
+    const topBranch =
+      [...data.rows].sort((a, b) => b.today_amount - a.today_amount)[0];
+
+    const lowBranch =
+      [...data.rows].sort((a, b) => a.today_amount - b.today_amount)[0];
 
     let html = `
       <div class="small">วันที่ ${data.date} | เดือน ${data.month}</div>
@@ -1162,7 +1165,10 @@ async function renderDashboardPage() {
           <div class="small">PO จริง ${money(data.total_po_sales)} บาท</div>
           <div class="small">ส่วนต่างบันทึก/PO ${formatPoDiff(data.total_po_diff)}</div>
           ${progressHtml(data.total_target_percent)}
-          <div class="small">PO ทำได้ ${data.total_target_percent || 0}% | เหลือถึงเป้า ${money(data.total_remain_to_target)} บาท</div>
+          <div class="small">
+            PO ทำได้ ${data.total_target_percent || 0}% |
+            เหลือถึงเป้า ${money(data.total_remain_to_target)} บาท
+          </div>
         </div>
 
         <div class="metric-card">
@@ -1178,21 +1184,33 @@ async function renderDashboardPage() {
         </div>
       </div>
 
-<h2 style="margin-top:18px;">สินค้าใกล้หมด</h2>
-<div id="lowStockBox" class="status">
-กำลังโหลด stock alert...
-</div>
+      <h2 style="margin-top:18px;">Top 10 สินค้าขายดีเดือนนี้</h2>
+      ${renderTopProductsBlock(data.top_products || [])}
 
-<h2 style="margin-top:18px;">แยกตามสาขา</h2>
-`;
+      <h2 style="margin-top:18px;">พฤติกรรมสินค้าแยกตามสาขาเดือนนี้</h2>
+
+      <div class="dashboard-grid">
+        ${renderQtyRankingBlock('แถมสูงสุด', data.branch_free_summary || [])}
+        ${renderQtyRankingBlock('ของเสียสูงสุด', data.branch_damage_summary || [])}
+        ${renderQtyRankingBlock('ชิมสูงสุด', data.branch_tasting_summary || [])}
+        ${renderQtyRankingBlock('เติมสูงสุด', data.branch_restock_summary || [])}
+      </div>
+
+      <h2 style="margin-top:18px;">แยกตามสาขา</h2>
+    `;
 
     data.rows.forEach(row => {
       html += `
         <div class="branch-card">
           <b>${row.branch_name}</b>
-          <div>วันนี้: ${money(row.today_amount)} บาท ${diffHtml(row.diff)}</div>
+
+          <div>
+            วันนี้: ${money(row.today_amount)} บาท ${diffHtml(row.diff)}
+          </div>
+
           <div class="small">
-            ยอดบันทึกเดือนนี้: ${money(row.month_sales)} / ${money(row.month_target)} บาท
+            ยอดบันทึกเดือนนี้:
+            ${money(row.month_sales)} / ${money(row.month_target)} บาท
           </div>
 
           <div class="small">
@@ -1202,16 +1220,18 @@ async function renderDashboardPage() {
           <div class="small">
             ส่วนต่างบันทึก/PO: ${formatPoDiff(row.po_diff)}
           </div>
+
           ${progressHtml(row.target_percent)}
+
           <div class="small">
-            PO ทำได้ ${row.target_percent || 0}% | เหลือถึงเป้า ${money(row.remain_to_target)} บาท
+            PO ทำได้ ${row.target_percent || 0}% |
+            เหลือถึงเป้า ${money(row.remain_to_target)} บาท
           </div>
         </div>
       `;
     });
 
     box.innerHTML = html;
-    setTimeout(loadLowStockBox, 500);
 
   } catch (err) {
     box.innerHTML = `
@@ -1220,6 +1240,81 @@ async function renderDashboardPage() {
       </div>
     `;
   }
+}
+
+    function renderTopProductsBlock(rows) {
+  if (!rows || !rows.length) {
+    return `<div class="status">ยังไม่มีข้อมูลสินค้าเดือนนี้</div>`;
+  }
+
+  let html = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>อันดับ</th>
+            <th>สินค้า</th>
+            <th>จำนวนขาย</th>
+            <th>ยอดขาย</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  rows.forEach(function(row, index) {
+    html += `
+      <tr>
+        <td>${index + 1}</td>
+        <td class="product">${row.product_name || '-'}</td>
+        <td>${Number(row.sold_qty || 0).toLocaleString()}</td>
+        <td>${money(row.amount)} บาท</td>
+      </tr>
+    `;
+  });
+
+  html += `
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  return html;
+}
+
+function renderQtyRankingBlock(title, rows) {
+  if (!rows || !rows.length) {
+    return `
+      <div class="metric-card">
+        <div class="metric-title">${title}</div>
+        <div class="small">ยังไม่มีข้อมูล</div>
+      </div>
+    `;
+  }
+
+  let html = `
+    <div class="metric-card">
+      <div class="metric-title">${title}</div>
+  `;
+
+  rows.slice(0, 5).forEach(function(row, index) {
+    html += `
+      <div style="
+        display:flex;
+        justify-content:space-between;
+        gap:8px;
+        padding:6px 0;
+        border-bottom:1px solid #f3f4f6;
+        font-size:13px;
+      ">
+        <span>${index + 1}. ${row.name}</span>
+        <b>${Number(row.qty || 0).toLocaleString()}</b>
+      </div>
+    `;
+  });
+
+  html += `</div>`;
+
+  return html;
 }
 
     function formatDiff(num) {
