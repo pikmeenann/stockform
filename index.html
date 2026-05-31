@@ -1621,15 +1621,15 @@ async function exportSalesReport() {
 
   try {
     const data = await apiGet({
-      action: 'exportSales',
-      lineUserId: lineUserId,
-      startDate: startDate,
-      endDate: endDate,
-      branchId: branchId,
-      movementType: movementType,
-      productId: productId
-      includeProductSummary: includeProductSummary
-    });
+  action: 'exportSales',
+  lineUserId: lineUserId,
+  startDate: startDate,
+  endDate: endDate,
+  branchId: branchId,
+  movementType: movementType,
+  productId: productId,
+  includeProductSummary: includeProductSummary
+});
 
     console.log('EXPORT RESULT', data);
 
