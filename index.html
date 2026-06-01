@@ -534,6 +534,7 @@ async function main() {
 
 renderBranches();
 setDefaultEntryDate();
+alert('currentAction = ' + currentAction);
 
 if (currentAction === 'export') {
   await renderExportPage();
