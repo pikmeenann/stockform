@@ -550,6 +550,11 @@ if (currentAction === 'restock') {
   return;
 }
 
+if (currentAction === 'restock_admin') {
+  await renderRestockAdminPage();
+  return;
+}
+
 if (currentAction === 'users') {
   await renderUsersPage();
   return;
@@ -2392,6 +2397,7 @@ function renderAnomalyAlertsBlock(rows) {
 }
 
 let restockItems = [];
+let pendingRestockGroups = [];
 
 async function renderRestockPage() {
   document.body.innerHTML = `
@@ -2667,6 +2673,345 @@ async function submitRestockFromLiff() {
     alert('ส่งไม่สำเร็จ: ' + (err.message || err));
     submitBtn.disabled = false;
     submitBtn.textContent = 'ส่งคำขอเติม';
+  }
+}
+
+async function renderRestockAdminPage() {
+  if (!['manager', 'owner'].includes(appData.user.role)) {
+    document.body.innerHTML = `
+      <div class="card">
+        <h1>ไม่มีสิทธิ์</h1>
+        <div class="status">หน้านี้สำหรับหัวหน้า/เจ้าของเท่านั้น</div>
+      </div>
+    `;
+    return;
+  }
+
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>อนุมัติเติมสินค้า</h1>
+
+      <label>ผู้ยืนยัน</label>
+      <input id="confirmedBy" type="text" placeholder="เช่น หัวหน้า / โรงงาน">
+
+      <div id="restockAdminList" class="status" style="margin-top:12px;">
+        กำลังโหลดรายการ...
+      </div>
+    </div>
+  `;
+
+  await loadRestockAdminGroups();
+}
+
+async function loadRestockAdminGroups() {
+  const box =
+    document.getElementById('restockAdminList');
+
+  box.innerHTML =
+    'กำลังโหลดรายการ...';
+
+  try {
+    const data =
+      await apiGet({
+        action: 'pendingRestockGroups',
+        lineUserId: lineUserId
+      });
+
+    if (!data.ok) {
+      box.innerHTML =
+        data.message || 'โหลดรายการไม่สำเร็จ';
+      return;
+    }
+
+    pendingRestockGroups =
+      data.groups || [];
+
+    renderRestockAdminGroups();
+
+  } catch (err) {
+    box.innerHTML =
+      'โหลดข้อมูลไม่สำเร็จ: ' +
+      (err.message || JSON.stringify(err));
+  }
+}
+
+function renderRestockAdminGroups() {
+  const box =
+    document.getElementById('restockAdminList');
+
+  if (!pendingRestockGroups.length) {
+    box.innerHTML =
+      'ไม่มีรายการรออนุมัติ / รอรับสินค้า';
+    return;
+  }
+
+  let html = '';
+
+  pendingRestockGroups.forEach(function(group, groupIndex) {
+    const groupStatus =
+      String(group.status || 'PENDING').toUpperCase();
+
+    const statusText =
+      groupStatus === 'APPROVED'
+        ? 'อนุมัติแล้ว / รอรับสินค้า'
+        : 'รออนุมัติ';
+
+    const statusColor =
+      groupStatus === 'APPROVED'
+        ? '#16a34a'
+        : '#f59e0b';
+
+    const totalRequestedQty =
+      (group.items || []).reduce(function(sum, item) {
+        return sum + Number(item.requested_qty || 0);
+      }, 0);
+
+    const totalConfirmedQty =
+      (group.items || []).reduce(function(sum, item) {
+        return sum + Number(item.confirmed_qty || item.requested_qty || 0);
+      }, 0);
+
+    html += `
+      <div class="branch-card">
+        <b>สาขา ${group.branch_id || '-'}</b>
+        <div class="small">เลขที่ ${group.request_id || '-'}</div>
+
+        <div style="
+          display:inline-block;
+          margin-top:8px;
+          padding:4px 8px;
+          border-radius:999px;
+          background:${statusColor};
+          color:white;
+          font-size:12px;
+          font-weight:bold;
+        ">
+          ${statusText}
+        </div>
+
+        <div class="status" style="margin-top:10px;">
+          <b>สรุปใบสั่ง</b><br>
+          จำนวนรายการ: ${(group.items || []).length} รายการ<br>
+          ยอดขอเติมรวม: ${totalRequestedQty.toLocaleString()} ชิ้น<br>
+          ยอดยืนยันรวม: ${totalConfirmedQty.toLocaleString()} ชิ้น
+        </div>
+
+        <div class="small">ผู้สั่ง: ${group.staff_name || '-'}</div>
+        <div class="small">วันที่สั่ง: ${group.order_date || '-'}</div>
+        <div class="small">วันที่ต้องการรับ: ${group.requested_delivery_date || '-'}</div>
+
+        <label>วันส่งจริง</label>
+        <input
+          id="admin_delivery_date_${groupIndex}"
+          type="date"
+          value="${group.delivery_date || group.requested_delivery_date || ''}"
+          ${groupStatus === 'APPROVED' ? 'disabled' : ''}>
+
+        <div class="table-wrap" style="margin-top:12px;">
+          <table>
+            <thead>
+              <tr>
+                <th>สินค้า</th>
+                <th>คงเหลือ</th>
+                <th>Min</th>
+                <th>ขอเติม</th>
+                <th>ยืนยัน</th>
+              </tr>
+            </thead>
+            <tbody>
+    `;
+
+    (group.items || []).forEach(function(item, itemIndex) {
+      html += `
+        <tr>
+          <td class="product">
+            ${item.product_name || item.product_code || '-'}
+            <div class="small">${item.product_code || '-'}</div>
+          </td>
+          <td>${item.current_stock || '-'}</td>
+          <td>${item.min_qty || '-'}</td>
+          <td>${item.requested_qty || 0}</td>
+          <td>
+            <input
+              id="admin_confirmed_qty_${groupIndex}_${itemIndex}"
+              type="number"
+              min="0"
+              inputmode="numeric"
+              value="${item.confirmed_qty || ''}"
+              style="width:70px;"
+              ${groupStatus === 'APPROVED' ? 'disabled' : ''}>
+          </td>
+        </tr>
+      `;
+    });
+
+    html += `
+            </tbody>
+          </table>
+        </div>
+    `;
+
+    if (groupStatus === 'PENDING') {
+      html += `
+        <button
+          id="admin_btn_${groupIndex}"
+          onclick="confirmRestockAdminGroup(${groupIndex})">
+          อนุมัติทั้งใบนี้
+        </button>
+      `;
+    }
+
+    if (groupStatus === 'APPROVED') {
+      html += `
+        <button
+          id="admin_receive_btn_${groupIndex}"
+          onclick="receiveRestockAdminGroup(${groupIndex})"
+          style="background:#16a34a;">
+          รับสินค้าแล้ว
+        </button>
+      `;
+    }
+
+    html += `
+      </div>
+    `;
+  });
+
+  box.className = '';
+  box.innerHTML = html;
+}
+
+async function confirmRestockAdminGroup(groupIndex) {
+  const group =
+    pendingRestockGroups[groupIndex];
+
+  const btn =
+    document.getElementById('admin_btn_' + groupIndex);
+
+  const confirmedBy =
+    document.getElementById('confirmedBy').value.trim();
+
+  const deliveryDate =
+    document.getElementById('admin_delivery_date_' + groupIndex).value;
+
+  if (!group || !group.request_id) {
+    alert('ไม่พบเลขที่ใบสั่ง');
+    return;
+  }
+
+  if (!confirmedBy) {
+    alert('กรุณาระบุผู้ยืนยัน');
+    return;
+  }
+
+  if (!deliveryDate) {
+    alert('กรุณาระบุวันส่งจริง');
+    return;
+  }
+
+  const items =
+    (group.items || []).map(function(item, itemIndex) {
+      const el =
+        document.getElementById(
+          'admin_confirmed_qty_' + groupIndex + '_' + itemIndex
+        );
+
+      return {
+        row_number: item.row_number,
+        product_code: item.product_code,
+        product_name: item.product_name,
+        confirmed_qty: Number(el.value || 0),
+        remark: item.remark || ''
+      };
+    });
+
+  if (!items.some(item => Number(item.confirmed_qty || 0) > 0)) {
+    alert('กรุณาระบุจำนวนที่ยืนยันอย่างน้อย 1 รายการ');
+    return;
+  }
+
+  if (!confirm('ยืนยันอนุมัติใบเติมสินค้า?\n\nเลขที่ ' + group.request_id)) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'กำลังอนุมัติ...';
+
+  try {
+    const data =
+      await apiGet({
+        action: 'confirmRestockGroup',
+        payload: JSON.stringify({
+          request_id: group.request_id,
+          delivery_date: deliveryDate,
+          confirmed_by: confirmedBy,
+          items: items
+        })
+      });
+
+    if (!data.ok) {
+      alert(data.message || 'อนุมัติไม่สำเร็จ');
+      btn.disabled = false;
+      btn.textContent = 'อนุมัติทั้งใบนี้';
+      return;
+    }
+
+    alert('อนุมัติเรียบร้อย\n\nเลขที่ ' + data.request_id);
+
+    await loadRestockAdminGroups();
+
+  } catch (err) {
+    alert('อนุมัติไม่สำเร็จ: ' + (err.message || err));
+    btn.disabled = false;
+    btn.textContent = 'อนุมัติทั้งใบนี้';
+  }
+}
+
+async function receiveRestockAdminGroup(groupIndex) {
+  const group =
+    pendingRestockGroups[groupIndex];
+
+  const btn =
+    document.getElementById('admin_receive_btn_' + groupIndex);
+
+  if (!group || !group.request_id) {
+    alert('ไม่พบเลขที่ใบสั่ง');
+    return;
+  }
+
+  if (!confirm('ยืนยันรับสินค้าเข้าสต๊อก?\n\nเลขที่ ' + group.request_id)) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'กำลังรับสินค้า...';
+
+  try {
+    const data =
+      await apiGet({
+        action: 'receiveRestockGroup',
+        requestId: group.request_id
+      });
+
+    if (!data.ok) {
+      alert(data.message || 'รับสินค้าไม่สำเร็จ');
+      btn.disabled = false;
+      btn.textContent = 'รับสินค้าแล้ว';
+      return;
+    }
+
+    alert(
+      'รับสินค้าเรียบร้อย\n\n' +
+      'จำนวนรายการ: ' + (data.received_count || 0) + '\n' +
+      'จำนวนรวม: ' + (data.received_qty || 0)
+    );
+
+    await loadRestockAdminGroups();
+
+  } catch (err) {
+    alert('รับสินค้าไม่สำเร็จ: ' + (err.message || err));
+    btn.disabled = false;
+    btn.textContent = 'รับสินค้าแล้ว';
   }
 }
     
