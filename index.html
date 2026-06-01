@@ -555,6 +555,11 @@ if (currentAction === 'restock_admin') {
   return;
 }
 
+if (currentAction === 'void_logs') {
+  await renderVoidLogsPage();
+  return;
+}
+
 if (currentAction === 'users') {
   await renderUsersPage();
   return;
@@ -2398,6 +2403,7 @@ function renderAnomalyAlertsBlock(rows) {
 
 let restockItems = [];
 let pendingRestockGroups = [];
+let foundVoidLogs = [];
 
 async function renderRestockPage() {
   document.body.innerHTML = `
@@ -3012,6 +3018,370 @@ async function receiveRestockAdminGroup(groupIndex) {
     alert('รับสินค้าไม่สำเร็จ: ' + (err.message || err));
     btn.disabled = false;
     btn.textContent = 'รับสินค้าแล้ว';
+  }
+}
+
+async function renderVoidLogsPage() {
+  if (!['manager', 'owner'].includes(appData.user.role)) {
+    document.body.innerHTML = `
+      <div class="card">
+        <h1>ไม่มีสิทธิ์</h1>
+        <div class="status">หน้านี้สำหรับหัวหน้า/เจ้าของเท่านั้น</div>
+      </div>
+    `;
+    return;
+  }
+
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>Void รายการผิด</h1>
+
+      <label>ค้นหาจากสาขา</label>
+      <select id="voidSearchBranch">
+        <option value="">เลือกสาขา</option>
+      </select>
+
+      <label>วันที่</label>
+      <input id="voidSearchDate" type="date">
+
+      <button onclick="searchVoidByBranchDate()">
+        ค้นหาจากสาขา/วันที่
+      </button>
+
+      <hr style="border:none;border-top:1px solid #eee;margin:14px 0;">
+
+      <label>หรือค้นหาด้วย tx_id</label>
+      <textarea
+        id="voidTxIds"
+        rows="4"
+        placeholder="ใส่ tx_id ทีละบรรทัด หรือคั่นด้วย comma"></textarea>
+
+      <button onclick="searchVoidByTxIds()">
+        ค้นหาจาก tx_id
+      </button>
+    </div>
+
+    <div class="card">
+      <label>เหตุผลการ Void</label>
+      <input
+        id="voidReason"
+        type="text"
+        placeholder="เช่น พนักงานคีย์ผิด">
+
+      <button
+        class="danger"
+        id="voidSubmitBtn"
+        onclick="voidSelectedLogs()"
+        disabled>
+        ยืนยัน Void รายการที่ค้นพบ
+      </button>
+    </div>
+
+    <div id="voidResultArea" class="card">
+      <div class="small">ยังไม่มีรายการ</div>
+    </div>
+  `;
+
+  const branchSelect =
+    document.getElementById('voidSearchBranch');
+
+  (appData.branches || []).forEach(function(branch) {
+    const option =
+      document.createElement('option');
+
+    option.value =
+      branch.branch_id;
+
+    option.textContent =
+      branch.branch_name;
+
+    branchSelect.appendChild(option);
+  });
+
+  const today =
+    new Date();
+
+  const yyyy =
+    today.getFullYear();
+
+  const mm =
+    String(today.getMonth() + 1).padStart(2, '0');
+
+  const dd =
+    String(today.getDate()).padStart(2, '0');
+
+  document.getElementById('voidSearchDate').value =
+    `${yyyy}-${mm}-${dd}`;
+}
+
+async function searchVoidByBranchDate() {
+  const branchId =
+    document.getElementById('voidSearchBranch').value;
+
+  const dateText =
+    document.getElementById('voidSearchDate').value;
+
+  const resultArea =
+    document.getElementById('voidResultArea');
+
+  const voidBtn =
+    document.getElementById('voidSubmitBtn');
+
+  foundVoidLogs = [];
+  voidBtn.disabled = true;
+
+  if (!branchId) {
+    alert('กรุณาเลือกสาขา');
+    return;
+  }
+
+  if (!dateText) {
+    alert('กรุณาเลือกวันที่');
+    return;
+  }
+
+  resultArea.innerHTML =
+    '<div class="small">กำลังค้นหา...</div>';
+
+  try {
+    const data =
+      await apiGet({
+        action: 'stockLogsByBranchDate',
+        branchId: branchId,
+        dateText: dateText
+      });
+
+    if (!data.ok) {
+      resultArea.innerHTML =
+        data.message || 'ค้นหาไม่สำเร็จ';
+      return;
+    }
+
+    foundVoidLogs =
+      data.logs || [];
+
+    renderVoidLogs();
+
+  } catch (err) {
+    resultArea.innerHTML =
+      'ค้นหาไม่สำเร็จ: ' +
+      (err.message || JSON.stringify(err));
+  }
+}
+
+async function searchVoidByTxIds() {
+  const txText =
+    document.getElementById('voidTxIds').value.trim();
+
+  const resultArea =
+    document.getElementById('voidResultArea');
+
+  const voidBtn =
+    document.getElementById('voidSubmitBtn');
+
+  foundVoidLogs = [];
+  voidBtn.disabled = true;
+
+  if (!txText) {
+    alert('กรุณาใส่ tx_id');
+    return;
+  }
+
+  resultArea.innerHTML =
+    '<div class="small">กำลังค้นหา...</div>';
+
+  try {
+    const data =
+      await apiGet({
+        action: 'stockLogsByTxIds',
+        txIds: txText
+      });
+
+    if (!data.ok) {
+      resultArea.innerHTML =
+        data.message || 'ค้นหาไม่สำเร็จ';
+      return;
+    }
+
+    foundVoidLogs =
+      data.logs || [];
+
+    renderVoidLogs();
+
+  } catch (err) {
+    resultArea.innerHTML =
+      'ค้นหาไม่สำเร็จ: ' +
+      (err.message || JSON.stringify(err));
+  }
+}
+
+function renderVoidLogs() {
+  const resultArea =
+    document.getElementById('voidResultArea');
+
+  const voidBtn =
+    document.getElementById('voidSubmitBtn');
+
+  if (!foundVoidLogs.length) {
+    resultArea.innerHTML =
+      '<div class="small">ไม่พบรายการ</div>';
+
+    voidBtn.disabled = true;
+    return;
+  }
+
+  let totalIn = 0;
+  let totalOut = 0;
+  let hasActive = false;
+
+  foundVoidLogs.forEach(function(row) {
+    totalIn += Number(row.qty_in || 0);
+    totalOut += Number(row.qty_out || 0);
+
+    if (String(row.void_status || '').trim().toUpperCase() !== 'VOID') {
+      hasActive = true;
+    }
+  });
+
+  let html = `
+    <div class="status">
+พบ ${foundVoidLogs.length} รายการ
+qty_in รวม: ${totalIn}
+qty_out รวม: ${totalOut}
+    </div>
+
+    <div class="table-wrap" style="margin-top:12px;">
+      <table>
+        <thead>
+          <tr>
+            <th>เลือก</th>
+            <th>tx_id</th>
+            <th>วันที่</th>
+            <th>สาขา</th>
+            <th>สินค้า</th>
+            <th>ประเภท</th>
+            <th>เข้า</th>
+            <th>ออก</th>
+            <th>ยอดเงิน</th>
+            <th>void</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  foundVoidLogs.forEach(function(row) {
+    const isVoided =
+      String(row.void_status || '').trim().toUpperCase() === 'VOID';
+
+    html += `
+      <tr style="${isVoided ? 'background:#f3f4f6;color:#999;' : ''}">
+        <td>
+          <input
+            type="checkbox"
+            class="void-check"
+            data-tx-id="${row.tx_id}"
+            ${isVoided ? 'disabled' : 'checked'}>
+        </td>
+        <td>${row.tx_id || '-'}</td>
+        <td>${row.datetime || '-'}</td>
+        <td>${row.branch_id || '-'}</td>
+        <td>${row.product_id || '-'}</td>
+        <td>${row.movement_type || '-'}</td>
+        <td>${row.qty_in || 0}</td>
+        <td>${row.qty_out || 0}</td>
+        <td>${Number(row.amount || 0).toLocaleString()}</td>
+        <td>${row.void_status || '-'}</td>
+      </tr>
+    `;
+  });
+
+  html += `
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  resultArea.innerHTML = html;
+  voidBtn.disabled = !hasActive;
+}
+
+async function voidSelectedLogs() {
+  const reason =
+    document.getElementById('voidReason').value.trim();
+
+  const voidBtn =
+    document.getElementById('voidSubmitBtn');
+
+  if (!foundVoidLogs.length) {
+    alert('ยังไม่มีรายการให้ void');
+    return;
+  }
+
+  if (!reason) {
+    alert('กรุณาระบุเหตุผล');
+    return;
+  }
+
+  const activeTxIds =
+    Array.from(
+      document.querySelectorAll('.void-check:checked')
+    ).map(input => input.dataset.txId);
+
+  if (!activeTxIds.length) {
+    alert('กรุณาเลือกรายการที่ต้องการ Void');
+    return;
+  }
+
+  if (
+    !confirm(
+      'ยืนยัน Void ' +
+      activeTxIds.length +
+      ' รายการ?\n\nระบบจะปรับ STOCK_BALANCE กลับอัตโนมัติ'
+    )
+  ) {
+    return;
+  }
+
+  voidBtn.disabled = true;
+  voidBtn.textContent = 'กำลัง Void...';
+
+  try {
+    const data =
+      await apiGet({
+        action: 'voidStockLogs',
+        payload: JSON.stringify({
+          tx_ids: activeTxIds,
+          reason: reason
+        })
+      });
+
+    if (!data.ok) {
+      alert(data.message || 'Void ไม่สำเร็จ');
+      voidBtn.disabled = false;
+      voidBtn.textContent = 'ยืนยัน Void รายการที่ค้นพบ';
+      return;
+    }
+
+    alert(
+      'Void สำเร็จ\n\n' +
+      'จำนวนรายการ: ' + data.void_count + '\n' +
+      'ผลกระทบ stock:\n' +
+      JSON.stringify(data.affected, null, 2)
+    );
+
+    voidBtn.textContent =
+      'ยืนยัน Void รายการที่ค้นพบ';
+
+    if (document.getElementById('voidSearchBranch').value) {
+      await searchVoidByBranchDate();
+    } else {
+      await searchVoidByTxIds();
+    }
+
+  } catch (err) {
+    alert('Void ไม่สำเร็จ: ' + (err.message || err));
+    voidBtn.disabled = false;
+    voidBtn.textContent = 'ยืนยัน Void รายการที่ค้นพบ';
   }
 }
     
