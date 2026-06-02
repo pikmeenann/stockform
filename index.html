@@ -2857,33 +2857,44 @@ function renderRestockAdminGroups() {
         </div>
     `;
 
-    if (groupStatus === 'PENDING') {
+if (groupStatus === 'PENDING') {
   html += `
     <button
       id="admin_btn_${groupIndex}"
       onclick="confirmRestockAdminGroup(${groupIndex})">
       อนุมัติทั้งใบนี้
     </button>
+  `;
+}
 
+if (groupStatus === 'APPROVED') {
+  html += `
     <button
-      class="danger"
-      id="admin_cancel_btn_${groupIndex}"
-      onclick="cancelRestockAdminGroup(${groupIndex})">
-      ยกเลิกใบสั่ง
+      id="admin_receive_btn_${groupIndex}"
+      onclick="receiveRestockAdminGroup(${groupIndex})"
+      style="background:#16a34a;">
+      รับสินค้าแล้ว
     </button>
   `;
 }
 
-    if (groupStatus === 'APPROVED') {
-      html += `
-        <button
-          id="admin_receive_btn_${groupIndex}"
-          onclick="receiveRestockAdminGroup(${groupIndex})"
-          style="background:#16a34a;">
-          รับสินค้าแล้ว
-        </button>
-      `;
-    }
+if (
+  groupStatus !== 'RECEIVED' &&
+  groupStatus !== 'CANCELLED'
+) {
+  html += `
+    <button
+      id="admin_cancel_btn_${groupIndex}"
+      onclick="cancelRestockAdminGroup(${groupIndex})"
+      style="
+        background:#dc2626;
+        color:white;
+        margin-top:8px;
+      ">
+      ยกเลิกใบสั่ง
+    </button>
+  `;
+}
 
     html += `
       </div>
