@@ -2858,14 +2858,21 @@ function renderRestockAdminGroups() {
     `;
 
     if (groupStatus === 'PENDING') {
-      html += `
-        <button
-          id="admin_btn_${groupIndex}"
-          onclick="confirmRestockAdminGroup(${groupIndex})">
-          อนุมัติทั้งใบนี้
-        </button>
-      `;
-    }
+  html += `
+    <button
+      id="admin_btn_${groupIndex}"
+      onclick="confirmRestockAdminGroup(${groupIndex})">
+      อนุมัติทั้งใบนี้
+    </button>
+
+    <button
+      class="danger"
+      id="admin_cancel_btn_${groupIndex}"
+      onclick="cancelRestockAdminGroup(${groupIndex})">
+      ยกเลิกใบสั่ง
+    </button>
+  `;
+}
 
     if (groupStatus === 'APPROVED') {
       html += `
@@ -3382,6 +3389,73 @@ async function voidSelectedLogs() {
     alert('Void ไม่สำเร็จ: ' + (err.message || err));
     voidBtn.disabled = false;
     voidBtn.textContent = 'ยืนยัน Void รายการที่ค้นพบ';
+  }
+}
+
+async function cancelRestockAdminGroup(groupIndex) {
+  const group =
+    pendingRestockGroups[groupIndex];
+
+  const btn =
+    document.getElementById('admin_cancel_btn_' + groupIndex);
+
+  const cancelledBy =
+    document.getElementById('confirmedBy').value.trim() ||
+    (appData.user && appData.user.name) ||
+    'admin';
+
+  if (!group || !group.request_id) {
+    alert('ไม่พบเลขที่ใบสั่ง');
+    return;
+  }
+
+  const reason =
+    prompt(
+      'ระบุเหตุผลการยกเลิกใบสั่ง\n\nเลขที่ ' + group.request_id,
+      'พนักงานสั่งผิด'
+    );
+
+  if (reason === null) {
+    return;
+  }
+
+  if (!confirm('ยืนยันยกเลิกใบสั่งนี้?\n\nเลขที่ ' + group.request_id)) {
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'กำลังยกเลิก...';
+
+  try {
+    const data =
+      await apiGet({
+        action: 'cancelRestockGroup',
+        payload: JSON.stringify({
+          request_id: group.request_id,
+          cancelled_by: cancelledBy,
+          reason: reason
+        })
+      });
+
+    if (!data.ok) {
+      alert(data.message || 'ยกเลิกไม่สำเร็จ');
+      btn.disabled = false;
+      btn.textContent = 'ยกเลิกใบสั่ง';
+      return;
+    }
+
+    alert(
+      'ยกเลิกใบสั่งเรียบร้อย\n\n' +
+      'เลขที่: ' + data.request_id + '\n' +
+      'จำนวนรายการ: ' + data.cancel_count
+    );
+
+    await loadRestockAdminGroups();
+
+  } catch (err) {
+    alert('ยกเลิกไม่สำเร็จ: ' + (err.message || err));
+    btn.disabled = false;
+    btn.textContent = 'ยกเลิกใบสั่ง';
   }
 }
     
