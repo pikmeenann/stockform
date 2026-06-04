@@ -2753,6 +2753,12 @@ async function loadRestockAdminGroups() {
   }
 }
 
+function isFactoryRole_() {
+  return appData &&
+    appData.user &&
+    String(appData.user.role || '').trim().toLowerCase() === 'factory';
+}
+
 function renderRestockAdminGroups() {
   const box =
     document.getElementById('restockAdminList');
@@ -2873,11 +2879,16 @@ if (
   groupStatus === 'PENDING' &&
   ['owner', 'manager', 'factory'].includes(appData.user.role)
 ) {
+  const confirmButtonText =
+    isFactoryRole_()
+      ? 'โรงงานยืนยันผลิต'
+      : 'อนุมัติทั้งใบนี้';
+
   html += `
     <button
       id="admin_btn_${groupIndex}"
       onclick="confirmRestockAdminGroup(${groupIndex})">
-      อนุมัติทั้งใบนี้
+      ${confirmButtonText}
     </button>
   `;
 }
@@ -2973,12 +2984,20 @@ async function confirmRestockAdminGroup(groupIndex) {
     return;
   }
 
-  if (!confirm('ยืนยันอนุมัติใบเติมสินค้า?\n\nเลขที่ ' + group.request_id)) {
-    return;
-  }
+  const confirmMessage =
+  isFactoryRole_()
+    ? 'ยืนยันรับผลิตใบเติมสินค้า?\n\nเลขที่ '
+    : 'ยืนยันอนุมัติใบเติมสินค้า?\n\nเลขที่ ';
+
+if (!confirm(confirmMessage + group.request_id)) {
+  return;
+}
 
   btn.disabled = true;
-  btn.textContent = 'กำลังอนุมัติ...';
+  btn.textContent =
+  isFactoryRole_()
+    ? 'กำลังยืนยันผลิต...'
+    : 'กำลังอนุมัติ...';
 
   try {
     const data =
@@ -2999,7 +3018,15 @@ async function confirmRestockAdminGroup(groupIndex) {
       return;
     }
 
-    alert('อนุมัติเรียบร้อย\n\nเลขที่ ' + data.request_id);
+    alert(
+  (
+    isFactoryRole_()
+      ? 'โรงงานยืนยันผลิตเรียบร้อย'
+      : 'อนุมัติเรียบร้อย'
+  ) +
+  '\n\nเลขที่ ' +
+  data.request_id
+);
 
     await loadRestockAdminGroups();
 
