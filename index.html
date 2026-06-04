@@ -438,6 +438,9 @@ function detectCurrentAction() {
   const searchParams =
     new URLSearchParams(window.location.search);
 
+  selectedRestockRequestId =
+  searchParams.get('requestId') || '';
+
   let mode =
     searchParams.get('mode') ||
     searchParams.get('action') ||
@@ -2405,6 +2408,7 @@ function renderAnomalyAlertsBlock(rows) {
 let restockItems = [];
 let pendingRestockGroups = [];
 let foundVoidLogs = [];
+let selectedRestockRequestId = '';
 
 async function renderRestockPage() {
   document.body.innerHTML = `
@@ -2732,6 +2736,13 @@ async function loadRestockAdminGroups() {
 
     pendingRestockGroups =
       data.groups || [];
+    if (selectedRestockRequestId) {
+  pendingRestockGroups =
+    pendingRestockGroups.filter(function(group) {
+      return String(group.request_id || '') ===
+        String(selectedRestockRequestId);
+    });
+}
 
     renderRestockAdminGroups();
 
