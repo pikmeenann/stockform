@@ -2684,11 +2684,11 @@ async function submitRestockFromLiff() {
 }
 
 async function renderRestockAdminPage() {
-  if (!['manager', 'owner'].includes(appData.user.role)) {
+  if (!['manager', 'owner', 'factory'].includes(appData.user.role)) {
     document.body.innerHTML = `
       <div class="card">
         <h1>ไม่มีสิทธิ์</h1>
-        <div class="status">หน้านี้สำหรับหัวหน้า/เจ้าของเท่านั้น</div>
+        <div class="status">หน้านี้สำหรับหัวหน้า/เจ้าของ/โรงงานเท่านั้น</div>
       </div>
     `;
     return;
@@ -2858,7 +2858,10 @@ function renderRestockAdminGroups() {
         </div>
     `;
 
-if (groupStatus === 'PENDING') {
+if (
+  groupStatus === 'PENDING' &&
+  ['owner', 'manager', 'factory'].includes(appData.user.role)
+) {
   html += `
     <button
       id="admin_btn_${groupIndex}"
@@ -2868,7 +2871,10 @@ if (groupStatus === 'PENDING') {
   `;
 }
 
-if (groupStatus === 'APPROVED') {
+if (
+  groupStatus === 'APPROVED' &&
+  ['owner', 'manager'].includes(appData.user.role)
+) {
   html += `
     <button
       id="admin_receive_btn_${groupIndex}"
@@ -2880,6 +2886,7 @@ if (groupStatus === 'APPROVED') {
 }
 
 if (
+  ['owner', 'manager'].includes(appData.user.role) &&
   groupStatus !== 'RECEIVED' &&
   groupStatus !== 'CANCELLED'
 ) {
