@@ -2677,7 +2677,9 @@ try {
 
   alert('ส่งคำขอเติมสำเร็จ');
 
-  await loadRestockData();
+restockItems = [];
+document.getElementById('tableArea').innerHTML =
+  'ส่งคำขอเติมสำเร็จแล้ว';
 
 } catch (err) {
 
