@@ -264,10 +264,19 @@
 
     google.script.run
       .withSuccessHandler(function(res) {
-        alert('ส่งคำขอเติมสำเร็จ');
-        submitBtn.innerText = 'ส่งคำขอเติม';
-        loadData();
-      })
+      alert('ส่งคำขอเติมสำเร็จ');
+
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'ส่งคำขอเติม';
+
+      restockItems = [];
+      document.getElementById('tableArea').innerHTML =
+        'ส่งคำขอเติมสำเร็จแล้ว';
+
+      document.querySelectorAll('.qty-input').forEach(function(input) {
+        input.value = '';
+      });
+    })
       .withFailureHandler(function(err) {
         alert('ส่งไม่สำเร็จ: ' + err.message);
         submitBtn.disabled = false;
