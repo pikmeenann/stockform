@@ -2658,33 +2658,37 @@ async function submitRestockFromLiff() {
   submitBtn.disabled = true;
   submitBtn.textContent = 'กำลังส่ง...';
 
-  try {
-    const data = await apiGet({
-      action: 'submitRestock',
-      payload: JSON.stringify({
-        branch_id: branchId,
-        staff_name: staffName,
-        requested_delivery_date: requestedDeliveryDate,
-        items: items
-      })
-    });
+try {
 
-    if (!data.ok) {
-      alert(data.message || 'ส่งคำขอเติมไม่สำเร็จ');
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'ส่งคำขอเติม';
-      return;
-    }
+  const data = await apiGet({
+    action: 'submitRestock',
+    payload: JSON.stringify({
+      branch_id: branchId,
+      staff_name: staffName,
+      requested_delivery_date: requestedDeliveryDate,
+      items: items
+    })
+  });
 
-    alert('ส่งคำขอเติมสำเร็จ');
-    submitBtn.textContent = 'ส่งคำขอเติม';
-    await loadRestockData();
-
-  } catch (err) {
-    alert('ส่งไม่สำเร็จ: ' + (err.message || err));
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'ส่งคำขอเติม';
+  if (!data.ok) {
+    alert(data.message || 'ส่งคำขอเติมไม่สำเร็จ');
+    return;
   }
+
+  alert('ส่งคำขอเติมสำเร็จ');
+
+  await loadRestockData();
+
+} catch (err) {
+
+  alert('ส่งไม่สำเร็จ: ' + (err.message || err));
+
+} finally {
+
+  submitBtn.disabled = false;
+  submitBtn.textContent = 'ส่งคำขอเติม';
+
+}
 }
 
 async function renderRestockAdminPage() {
