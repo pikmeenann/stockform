@@ -532,12 +532,14 @@ async function main() {
         return;
       }
 
-      appData = data;
+     appData = data;
 
-      document.getElementById('recorderName').value = data.user.name || '';
+if (currentAction === 'stock' || currentAction === 'stockview') {
+  document.getElementById('recorderName').value = data.user.name || '';
 
-renderBranches();
-setDefaultEntryDate();
+  renderBranches();
+  setDefaultEntryDate();
+}
 
 if (currentAction === 'export') {
   await renderExportPage();
