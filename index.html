@@ -380,6 +380,7 @@ td.product {
 
     <label>สาขา</label>
     <select id="branch" onchange="loadStockMap()"></select>
+    <div id="stockBranchDisplay" class="status" style="display:none;"></div>
 
     <label>วันที่ทำรายการ</label>
     <input type="date" id="entryDate">
@@ -599,17 +600,44 @@ if (currentAction === 'help') {
       );
     }
 
-    function renderBranches() {
-      const select = document.getElementById('branch');
-      select.innerHTML = '';
+function renderBranches() {
+  const select = document.getElementById('branch');
+  if (!select) return;
 
-      appData.branches.forEach(b => {
-        const option = document.createElement('option');
-        option.value = b.branch_id;
-        option.textContent = b.branch_name;
-        select.appendChild(option);
-      });
-    }
+  select.innerHTML = '';
+
+  const role = String(appData.user.role || '').toLowerCase();
+  const userBranchId = String(appData.user.branch_id || '').trim();
+
+  let branches = appData.branches || [];
+
+  if (role === 'staff') {
+    branches = branches.filter(function(b) {
+      return String(b.branch_id).trim() === userBranchId;
+    });
+  }
+
+  branches.forEach(function(b) {
+    const option = document.createElement('option');
+    option.value = b.branch_id;
+    option.textContent = b.branch_name;
+    select.appendChild(option);
+  });
+
+if (role === 'staff') {
+  select.style.display = 'none';
+
+  const display = document.getElementById('stockBranchDisplay');
+  if (display) {
+    display.style.display = 'block';
+    display.textContent = 'สาขา: ' + userBranchId;
+  }
+} else {
+  select.style.display = 'block';
+}
+
+  loadStockMap();
+}
 
     async function loadStockMap() {
       const branchId = getBranchId();
@@ -2411,19 +2439,22 @@ let foundVoidLogs = [];
 let selectedRestockRequestId = '';
 
 async function renderRestockPage() {
+  const role = String(appData.user.role || '').toLowerCase();
+  const userName = appData.user.name || '';
+  const userBranchId = appData.user.branch_id || '';
+
   document.body.innerHTML = `
     <div class="card">
       <h1>เติมสินค้า</h1>
 
       <label>สาขา</label>
+      <div id="branchDisplay" class="status" style="display:none;"></div>
       <select id="branchId" onchange="loadRestockData()">
         <option value="">เลือกสาขา</option>
       </select>
 
       <label>ชื่อผู้สั่ง</label>
-      <select id="staffName">
-        <option value="">เลือกผู้สั่ง</option>
-      </select>
+      <input id="staffName" type="text" readonly value="${userName}">
 
       <label>วันที่ต้องการรับสินค้า</label>
       <input id="requestedDeliveryDate" type="date">
@@ -2438,21 +2469,32 @@ async function renderRestockPage() {
     </div>
   `;
 
-  const branchSelect =
-    document.getElementById('branchId');
+  const branchSelect = document.getElementById('branchId');
+  let branches = appData.branches || [];
 
-  (appData.branches || []).forEach(function(branch) {
-    const option =
-      document.createElement('option');
+  if (role === 'staff') {
+    branches = branches.filter(function(branch) {
+      return String(branch.branch_id).trim() === String(userBranchId).trim();
+    });
+  }
 
-    option.value =
-      branch.branch_id;
-
-    option.textContent =
-      branch.branch_name;
-
+  branches.forEach(function(branch) {
+    const option = document.createElement('option');
+    option.value = branch.branch_id;
+    option.textContent = branch.branch_name;
     branchSelect.appendChild(option);
   });
+
+  if (role === 'staff') {
+    branchSelect.value = userBranchId;
+    branchSelect.style.display = 'none';
+
+    document.getElementById('branchDisplay').style.display = 'block';
+    document.getElementById('branchDisplay').textContent =
+      'สาขา: ' + userBranchId;
+
+    await loadRestockData();
+  }
 }
 
 async function loadRestockData() {
@@ -2475,8 +2517,6 @@ async function loadRestockData() {
 
   tableArea.innerHTML = 'กำลังโหลดข้อมูล...';
 
-  await loadStaffByBranchFromLiff(branchId);
-
   const data = await apiGet({
   action: 'restockData',
   branchId: branchId
@@ -2494,35 +2534,6 @@ restockItems =
   data.items || [];
 
 renderRestockTable();
-}
-
-async function loadStaffByBranchFromLiff(branchId) {
-  const staffSelect =
-    document.getElementById('staffName');
-
-  staffSelect.innerHTML =
-    '<option value="">กำลังโหลดรายชื่อ...</option>';
-
-  const data = await apiGet({
-    action: 'staffByBranch',
-    branchId: branchId
-  });
-
-  staffSelect.innerHTML =
-    '<option value="">เลือกชื่อผู้สั่ง</option>';
-
-  (data.staff || []).forEach(function(staff) {
-    const option =
-      document.createElement('option');
-
-    option.value =
-      staff.name;
-
-    option.textContent =
-      staff.name;
-
-    staffSelect.appendChild(option);
-  });
 }
 
 function renderRestockTable() {
@@ -2661,14 +2672,15 @@ async function submitRestockFromLiff() {
 try {
 
   const data = await apiGet({
-    action: 'submitRestock',
-    payload: JSON.stringify({
-      branch_id: branchId,
-      staff_name: staffName,
-      requested_delivery_date: requestedDeliveryDate,
-      items: items
-    })
-  });
+  action: 'submitRestock',
+  payload: JSON.stringify({
+    lineUserId: lineUserId,
+    branch_id: branchId,
+    staff_name: staffName,
+    requested_delivery_date: requestedDeliveryDate,
+    items: items
+  })
+});
 
   if (!data.ok) {
     alert(data.message || 'ส่งคำขอเติมไม่สำเร็จ');
