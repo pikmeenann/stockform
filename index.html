@@ -2736,30 +2736,18 @@ async function renderRestockAdminPage() {
     <div class="card">
       <h1>อนุมัติเติมสินค้า / แผนส่งโรงงาน</h1>
 
-      <label>วันที่ต้องส่งสินค้า</label>
-      <input
-        id="restockAdminDeliveryDate"
-        type="date"
-        onchange="reloadRestockAdminPage()">
-
-      <button onclick="reloadRestockAdminPage()">
-        โหลดข้อมูล
-      </button>
-
-      <div id="restockAdminDashboard" style="margin-top:12px;">
-        <div class="status">กำลังโหลดสรุป...</div>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>รายการใบเติม</h2>
-
       <div class="status">
         ผู้ยืนยัน: ${appData.user.name || '-'}
         <div class="small">
           ระบบดึง LINE UID อัตโนมัติ ไม่ต้องกรอกชื่อเอง
         </div>
       </div>
+    </div>
+
+    <div id="restockAdminSummary"></div>
+
+    <div class="card">
+      <h2>ออเดอร์รอส่งทั้งหมด</h2>
 
       <div id="restockAdminList" class="status" style="margin-top:12px;">
         กำลังโหลดรายการ...
@@ -2767,20 +2755,11 @@ async function renderRestockAdminPage() {
     </div>
   `;
 
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, '0');
-  const dd = String(today.getDate()).padStart(2, '0');
-
-  document.getElementById('restockAdminDeliveryDate').value =
-    `${yyyy}-${mm}-${dd}`;
-
-  await reloadRestockAdminPage();
+  await loadRestockAdminGroups();
 }
 
 
 async function reloadRestockAdminPage() {
-  await loadRestockAdminDashboard();
   await reloadRestockAdminPage();
 }
 
@@ -2955,11 +2934,6 @@ async function loadRestockAdminGroups() {
     'กำลังโหลดรายการ...';
 
   try {
-    const selectedDeliveryDate =
-      document.getElementById('restockAdminDeliveryDate')
-        ? document.getElementById('restockAdminDeliveryDate').value
-        : '';
-
     const data =
       await apiGet({
         action: 'pendingRestockGroups',
@@ -2974,27 +2948,16 @@ async function loadRestockAdminGroups() {
 
     pendingRestockGroups =
       data.groups || [];
-    if (selectedDeliveryDate) {
-  pendingRestockGroups =
-    pendingRestockGroups.filter(function(group) {
-      const groupDate =
-        String(
-          group.requested_delivery_date ||
-          group.delivery_date ||
-          ''
-        ).trim();
 
-      return groupDate === selectedDeliveryDate;
-    });
-}
     if (selectedRestockRequestId) {
-  pendingRestockGroups =
-    pendingRestockGroups.filter(function(group) {
-      return String(group.request_id || '') ===
-        String(selectedRestockRequestId);
-    });
-}
+      pendingRestockGroups =
+        pendingRestockGroups.filter(function(group) {
+          return String(group.request_id || '') ===
+            String(selectedRestockRequestId);
+        });
+    }
 
+    renderRestockAdminSummary();
     renderRestockAdminGroups();
 
   } catch (err) {
@@ -3004,6 +2967,172 @@ async function loadRestockAdminGroups() {
   }
 }
 
+
+function renderRestockAdminSummary() {
+  const box =
+    document.getElementById('restockAdminSummary');
+
+  if (!box) return;
+
+  const groups =
+    pendingRestockGroups || [];
+
+  if (!groups.length) {
+    box.innerHTML = `
+      <div class="card">
+        <h2>สรุปออเดอร์</h2>
+        <div class="status">ไม่มีออเดอร์รอส่ง</div>
+      </div>
+    `;
+    return;
+  }
+
+  const branchMap = {};
+  const productMap = {};
+
+  let totalOrders = groups.length;
+  let totalQty = 0;
+
+  groups.forEach(function(group) {
+    const branchId =
+      String(group.branch_id || '-').trim();
+
+    if (!branchMap[branchId]) {
+      branchMap[branchId] = {
+        branch_id: branchId,
+        order_count: 0,
+        qty: 0,
+      };
+    }
+
+    branchMap[branchId].order_count++;
+
+    (group.items || []).forEach(function(item) {
+      const productCode =
+        String(item.product_code || item.product_id || '').trim();
+
+      const productName =
+        item.product_name || productCode;
+
+      const qty =
+        Number(item.confirmed_qty || item.requested_qty || 0);
+
+      totalQty += qty;
+      branchMap[branchId].qty += qty;
+
+      if (!productMap[productCode]) {
+        productMap[productCode] = {
+          product_code: productCode,
+          product_name: productName,
+          qty: 0,
+        };
+      }
+
+      productMap[productCode].qty += qty;
+    });
+  });
+
+  const branchRows =
+    Object.keys(branchMap)
+      .map(function(branchId) {
+        return branchMap[branchId];
+      })
+      .sort(function(a, b) {
+        return String(a.branch_id).localeCompare(String(b.branch_id));
+      });
+
+  const productRows =
+    Object.keys(productMap)
+      .map(function(productCode) {
+        return productMap[productCode];
+      })
+      .sort(function(a, b) {
+        return Number(b.qty || 0) - Number(a.qty || 0);
+      });
+
+  let html = `
+    <div class="card">
+      <h2>สรุปออเดอร์รอส่ง</h2>
+
+      <div class="dashboard-grid">
+        <div class="metric-card">
+          <div class="metric-title">จำนวนใบเติม</div>
+          <div class="metric-value">${totalOrders.toLocaleString()}</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-title">จำนวนรวม</div>
+          <div class="metric-value">${totalQty.toLocaleString()}</div>
+        </div>
+      </div>
+
+      <h2 style="margin-top:18px;">สรุปตามสาขา</h2>
+  `;
+
+  html += `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>สาขา</th>
+            <th>ใบเติม</th>
+            <th>จำนวนรวม</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  branchRows.forEach(function(row) {
+    html += `
+      <tr>
+        <td class="product">${row.branch_id}</td>
+        <td>${Number(row.order_count || 0).toLocaleString()}</td>
+        <td><b>${Number(row.qty || 0).toLocaleString()}</b></td>
+      </tr>
+    `;
+  });
+
+  html += `
+        </tbody>
+      </table>
+    </div>
+
+    <h2 style="margin-top:18px;">สรุปตามสินค้า</h2>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>สินค้า</th>
+            <th>จำนวนรวม</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  productRows.forEach(function(row) {
+    html += `
+      <tr>
+        <td class="product">
+          ${row.product_name}
+          <div class="small">${row.product_code}</div>
+        </td>
+        <td><b>${Number(row.qty || 0).toLocaleString()}</b></td>
+      </tr>
+    `;
+  });
+
+  html += `
+        </tbody>
+      </table>
+    </div>
+  </div>
+  `;
+
+  box.innerHTML = html;
+}    
+
+    
 function isFactoryRole_() {
   return appData &&
     appData.user &&
@@ -3254,7 +3383,7 @@ async function confirmRestockAdminGroup(groupIndex) {
       'จำนวนรวม: ' + (data.received_qty || 0)
     );
 
-    await reloadRestockAdminPage();
+    await loadRestockAdminGroups();
 
   } catch (err) {
     alert('ยืนยันไม่สำเร็จ: ' + (err.message || err));
