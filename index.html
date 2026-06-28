@@ -561,6 +561,11 @@ if (currentAction === 'restock_admin') {
   return;
 }
 
+if (currentAction === 'factory_dashboard') {
+  await renderFactoryDashboardPage();
+  return;
+}
+
 if (currentAction === 'void_logs') {
   await renderVoidLogsPage();
   return;
@@ -3467,6 +3472,263 @@ async function cancelRestockAdminGroup(groupIndex) {
     btn.disabled = false;
     btn.textContent = 'ยกเลิกใบสั่ง';
   }
+}
+
+
+async function renderFactoryDashboardPage() {
+  if (!['manager', 'owner', 'factory'].includes(appData.user.role)) {
+    document.body.innerHTML = `
+      <div class="card">
+        <h1>ไม่มีสิทธิ์</h1>
+        <div class="status">
+          หน้านี้สำหรับหัวหน้า/เจ้าของ/โรงงานเท่านั้น
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>Dashboard โรงงาน</h1>
+
+      <label>วันที่ต้องส่งสินค้า</label>
+      <input type="date" id="factoryDeliveryDate">
+
+      <button onclick="loadFactoryDashboard()">
+        โหลดข้อมูล
+      </button>
+
+      <div id="factoryDashboardBox" style="margin-top:12px;">
+        กำลังโหลดข้อมูล...
+      </div>
+    </div>
+  `;
+
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+
+  document.getElementById('factoryDeliveryDate').value =
+    `${yyyy}-${mm}-${dd}`;
+
+  await loadFactoryDashboard();
+}
+
+async function loadFactoryDashboard() {
+  const box =
+    document.getElementById('factoryDashboardBox');
+
+  const deliveryDate =
+    document.getElementById('factoryDeliveryDate').value;
+
+  box.innerHTML = `
+    <div class="status">กำลังโหลดข้อมูล...</div>
+  `;
+
+  try {
+    const data =
+      await apiGet({
+        action: 'factoryRestockDashboard',
+        lineUserId: lineUserId,
+        deliveryDate: deliveryDate
+      });
+
+    if (!data.ok) {
+      box.innerHTML = `
+        <div class="status">
+          ${data.message || 'โหลดข้อมูลไม่สำเร็จ'}
+        </div>
+      `;
+      return;
+    }
+
+    box.innerHTML =
+      renderFactoryDashboardHtml_(data);
+
+  } catch (err) {
+    box.innerHTML = `
+      <div class="status">
+        เกิดข้อผิดพลาด: ${err.message || JSON.stringify(err)}
+      </div>
+    `;
+  }
+}
+
+function renderFactoryDashboardHtml_(data) {
+  let html = '';
+
+  html += `
+    <div class="dashboard-grid">
+      <div class="metric-card">
+        <div class="metric-title">จำนวนใบเติม</div>
+        <div class="metric-value">
+          ${Number(data.total_request_count || 0).toLocaleString()}
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">จำนวนที่ขอ</div>
+        <div class="metric-value">
+          ${Number(data.total_requested_qty || 0).toLocaleString()}
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">จำนวนที่ต้องส่ง</div>
+        <div class="metric-value">
+          ${Number(data.total_confirmed_qty || 0).toLocaleString()}
+        </div>
+      </div>
+    </div>
+  `;
+
+  html += `
+    <h2 style="margin-top:18px;">สรุปตามสาขา</h2>
+  `;
+
+  if (!data.branch_rows || !data.branch_rows.length) {
+    html += `
+      <div class="status">
+        ไม่มีรายการส่งของวันนี้
+      </div>
+    `;
+  } else {
+    html += `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>สาขา</th>
+              <th>ใบเติม</th>
+              <th>จำนวนขอ</th>
+              <th>จำนวนส่ง</th>
+              <th>รอ Auto</th>
+              <th>Manual</th>
+              <th>Auto</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    data.branch_rows.forEach(function(row) {
+      html += `
+        <tr>
+          <td class="product">${row.branch_name}</td>
+          <td>${Number(row.request_count || 0).toLocaleString()}</td>
+          <td>${Number(row.requested_qty || 0).toLocaleString()}</td>
+          <td><b>${Number(row.confirmed_qty || 0).toLocaleString()}</b></td>
+          <td>${Number(row.pending_count || 0).toLocaleString()}</td>
+          <td>${Number(row.manual_count || 0).toLocaleString()}</td>
+          <td>${Number(row.auto_count || 0).toLocaleString()}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  html += `
+    <h2 style="margin-top:18px;">สรุปตามสินค้า</h2>
+  `;
+
+  if (!data.product_rows || !data.product_rows.length) {
+    html += `
+      <div class="status">
+        ไม่มีรายการสินค้า
+      </div>
+    `;
+  } else {
+    html += `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>สินค้า</th>
+              <th>จำนวนขอ</th>
+              <th>จำนวนต้องส่ง</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    data.product_rows.forEach(function(row) {
+      html += `
+        <tr>
+          <td class="product">
+            ${row.product_name}
+            <div class="small">${row.product_code}</div>
+          </td>
+          <td>${Number(row.requested_qty || 0).toLocaleString()}</td>
+          <td><b>${Number(row.confirmed_qty || 0).toLocaleString()}</b></td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  html += `
+    <h2 style="margin-top:18px;">รายละเอียดใบเติม</h2>
+  `;
+
+  if (!data.request_rows || !data.request_rows.length) {
+    html += `
+      <div class="status">
+        ไม่มีใบเติม
+      </div>
+    `;
+  } else {
+    data.request_rows.forEach(function(row) {
+      html += `
+        <div class="branch-card">
+          <b>${row.branch_name}</b>
+          <div class="small">เลขที่: ${row.request_id}</div>
+          <div>ผู้สั่ง: ${row.staff_name || '-'}</div>
+          <div>จำนวนรายการ: ${Number(row.item_count || 0).toLocaleString()}</div>
+          <div>จำนวนต้องส่ง: <b>${Number(row.confirmed_qty || 0).toLocaleString()}</b></div>
+          <div class="small">สถานะ: ${formatFactoryStatus_(row.status)}</div>
+          <button
+            onclick="openRestockAdminByRequestId('${row.request_id}')"
+            style="margin-top:10px;">
+            เปิดใบนี้
+          </button>
+        </div>
+      `;
+    });
+  }
+
+  return html;
+}
+
+function formatFactoryStatus_(status) {
+  const text =
+    String(status || '').trim().toUpperCase();
+
+  if (text === 'PENDING') return 'รอ Auto / รอแก้จำนวนจริง';
+  if (text === 'RECEIVED_MANUAL') return 'ยืนยันส่งจริงแล้ว';
+  if (text === 'RECEIVED_AUTO') return 'ระบบเติมให้อัตโนมัติ';
+  if (text === 'RECEIVED') return 'รับสินค้าแล้ว';
+  if (text === 'APPROVED') return 'อนุมัติแล้ว';
+  if (text === 'CANCELLED') return 'ยกเลิกแล้ว';
+
+  return text || '-';
+}
+
+function openRestockAdminByRequestId(requestId) {
+  window.location.href =
+    window.location.pathname +
+    '?mode=restock_admin&requestId=' +
+    encodeURIComponent(requestId);
 }
     
     main();
