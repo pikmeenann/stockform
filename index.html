@@ -2717,7 +2717,9 @@ async function renderRestockAdminPage() {
     document.body.innerHTML = `
       <div class="card">
         <h1>ไม่มีสิทธิ์</h1>
-        <div class="status">หน้านี้สำหรับหัวหน้า/เจ้าของ/โรงงานเท่านั้น</div>
+        <div class="status">
+          หน้านี้สำหรับหัวหน้า/เจ้าของ/โรงงานเท่านั้น
+        </div>
       </div>
     `;
     return;
@@ -2725,14 +2727,32 @@ async function renderRestockAdminPage() {
 
   document.body.innerHTML = `
     <div class="card">
-      <h1>อนุมัติเติมสินค้า</h1>
+      <h1>อนุมัติเติมสินค้า / แผนส่งโรงงาน</h1>
 
-      <div class="status">
-      ผู้ยืนยัน: ${appData.user.name || '-'}
-      <div class="small">
-        ระบบดึง LINE UID อัตโนมัติ ไม่ต้องกรอกชื่อเอง
+      <label>วันที่ต้องส่งสินค้า</label>
+      <input
+        id="restockAdminDeliveryDate"
+        type="date"
+        onchange="reloadRestockAdminPage()">
+
+      <button onclick="reloadRestockAdminPage()">
+        โหลดข้อมูล
+      </button>
+
+      <div id="restockAdminDashboard" style="margin-top:12px;">
+        <div class="status">กำลังโหลดสรุป...</div>
       </div>
     </div>
+
+    <div class="card">
+      <h2>รายการใบเติม</h2>
+
+      <div class="status">
+        ผู้ยืนยัน: ${appData.user.name || '-'}
+        <div class="small">
+          ระบบดึง LINE UID อัตโนมัติ ไม่ต้องกรอกชื่อเอง
+        </div>
+      </div>
 
       <div id="restockAdminList" class="status" style="margin-top:12px;">
         กำลังโหลดรายการ...
@@ -2740,8 +2760,185 @@ async function renderRestockAdminPage() {
     </div>
   `;
 
-  await loadRestockAdminGroups();
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+
+  document.getElementById('restockAdminDeliveryDate').value =
+    `${yyyy}-${mm}-${dd}`;
+
+  await reloadRestockAdminPage();
 }
+
+
+async function reloadRestockAdminPage() {
+  await loadRestockAdminDashboard();
+  await reloadRestockAdminPage();
+}
+
+async function loadRestockAdminDashboard() {
+  const box =
+    document.getElementById('restockAdminDashboard');
+
+  if (!box) return;
+
+  const deliveryDate =
+    document.getElementById('restockAdminDeliveryDate').value;
+
+  box.innerHTML =
+    '<div class="status">กำลังโหลดสรุป...</div>';
+
+  try {
+    const data =
+      await apiGet({
+        action: 'restockAdminDashboard',
+        lineUserId: lineUserId,
+        deliveryDate: deliveryDate
+      });
+
+    if (!data.ok) {
+      box.innerHTML =
+        '<div class="status">' +
+        (data.message || 'โหลดสรุปไม่สำเร็จ') +
+        '</div>';
+      return;
+    }
+
+    box.innerHTML =
+      renderRestockAdminDashboardHtml_(data);
+
+  } catch (err) {
+    box.innerHTML =
+      '<div class="status">โหลดสรุปไม่สำเร็จ: ' +
+      (err.message || JSON.stringify(err)) +
+      '</div>';
+  }
+}
+
+function renderRestockAdminDashboardHtml_(data) {
+  let html = '';
+
+  html += `
+    <div class="dashboard-grid">
+      <div class="metric-card">
+        <div class="metric-title">ใบเติมทั้งหมด</div>
+        <div class="metric-value">
+          ${Number(data.total_request_count || 0).toLocaleString()}
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">จำนวนที่ขอ</div>
+        <div class="metric-value">
+          ${Number(data.total_requested_qty || 0).toLocaleString()}
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">จำนวนต้องส่ง</div>
+        <div class="metric-value">
+          ${Number(data.total_confirmed_qty || 0).toLocaleString()}
+        </div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-title">รายการรอ Auto</div>
+        <div class="metric-value">
+          ${Number(data.pending_count || 0).toLocaleString()}
+        </div>
+      </div>
+    </div>
+  `;
+
+  html += `
+    <h2 style="margin-top:18px;">สรุปตามสาขา</h2>
+  `;
+
+  if (!data.branch_rows || !data.branch_rows.length) {
+    html += `
+      <div class="status">ไม่มีรายการส่งของวันที่เลือก</div>
+    `;
+  } else {
+    html += `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>สาขา</th>
+              <th>ใบเติม</th>
+              <th>จำนวนขอ</th>
+              <th>จำนวนต้องส่ง</th>
+              <th>รอ Auto</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    data.branch_rows.forEach(function(row) {
+      html += `
+        <tr>
+          <td class="product">${row.branch_name}</td>
+          <td>${Number(row.request_count || 0).toLocaleString()}</td>
+          <td>${Number(row.requested_qty || 0).toLocaleString()}</td>
+          <td><b>${Number(row.confirmed_qty || 0).toLocaleString()}</b></td>
+          <td>${Number(row.pending_count || 0).toLocaleString()}</td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  html += `
+    <h2 style="margin-top:18px;">สรุปตามสินค้า</h2>
+  `;
+
+  if (!data.product_rows || !data.product_rows.length) {
+    html += `
+      <div class="status">ไม่มีรายการสินค้า</div>
+    `;
+  } else {
+    html += `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>สินค้า</th>
+              <th>จำนวนขอ</th>
+              <th>จำนวนต้องส่ง</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    data.product_rows.forEach(function(row) {
+      html += `
+        <tr>
+          <td class="product">
+            ${row.product_name}
+            <div class="small">${row.product_code}</div>
+          </td>
+          <td>${Number(row.requested_qty || 0).toLocaleString()}</td>
+          <td><b>${Number(row.confirmed_qty || 0).toLocaleString()}</b></td>
+        </tr>
+      `;
+    });
+
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  return html;
+}
+
 
 async function loadRestockAdminGroups() {
   const box =
@@ -2751,6 +2948,11 @@ async function loadRestockAdminGroups() {
     'กำลังโหลดรายการ...';
 
   try {
+    const selectedDeliveryDate =
+      document.getElementById('restockAdminDeliveryDate')
+        ? document.getElementById('restockAdminDeliveryDate').value
+        : '';
+
     const data =
       await apiGet({
         action: 'pendingRestockGroups',
@@ -2765,6 +2967,19 @@ async function loadRestockAdminGroups() {
 
     pendingRestockGroups =
       data.groups || [];
+    if (selectedDeliveryDate) {
+  pendingRestockGroups =
+    pendingRestockGroups.filter(function(group) {
+      const groupDate =
+        String(
+          group.requested_delivery_date ||
+          group.delivery_date ||
+          ''
+        ).trim();
+
+      return groupDate === selectedDeliveryDate;
+    });
+}
     if (selectedRestockRequestId) {
   pendingRestockGroups =
     pendingRestockGroups.filter(function(group) {
@@ -3032,7 +3247,7 @@ async function confirmRestockAdminGroup(groupIndex) {
       'จำนวนรวม: ' + (data.received_qty || 0)
     );
 
-    await loadRestockAdminGroups();
+    await reloadRestockAdminPage();
 
   } catch (err) {
     alert('ยืนยันไม่สำเร็จ: ' + (err.message || err));
@@ -3465,7 +3680,7 @@ async function cancelRestockAdminGroup(groupIndex) {
       'จำนวนรายการ: ' + data.cancel_count
     );
 
-    await loadRestockAdminGroups();
+    await reloadRestockAdminPage();
 
   } catch (err) {
     alert('ยกเลิกไม่สำเร็จ: ' + (err.message || err));
