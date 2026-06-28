@@ -561,6 +561,11 @@ if (currentAction === 'restock_admin') {
   return;
 }
 
+if (currentAction === 'factory_stock') {
+  await renderFactoryStockPage();
+  return;
+}
+
 if (currentAction === 'factory_dashboard') {
   await renderFactoryDashboardPage();
   return;
@@ -2442,6 +2447,8 @@ function renderAnomalyAlertsBlock(rows) {
 
 let restockItems = [];
 let pendingRestockGroups = [];
+let factoryStockData = null;
+let factoryPoItems = [];
 let foundVoidLogs = [];
 let selectedRestockRequestId = '';
 
@@ -3945,6 +3952,804 @@ function openRestockAdminByRequestId(requestId) {
     '?mode=restock_admin&requestId=' +
     encodeURIComponent(requestId);
 }
+
+
+async function renderFactoryStockPage() {
+  if (!['manager', 'owner', 'factory'].includes(appData.user.role)) {
+    document.body.innerHTML = `
+      <div class="card">
+        <h1>ไม่มีสิทธิ์</h1>
+        <div class="status">
+          หน้านี้สำหรับหัวหน้า/เจ้าของ/โรงงานเท่านั้น
+        </div>
+      </div>
+    `;
+    return;
+  }
+
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>Factory Stock</h1>
+
+      <label>วันที่ส่งหน้าร้าน</label>
+      <input
+        id="factoryDeliveryDate"
+        type="date"
+        onchange="loadFactoryStockData()">
+
+      <button onclick="loadFactoryStockData()">
+        โหลดข้อมูล
+      </button>
+
+      <div class="small">
+        ใช้ดูวัตถุดิบคงเหลือ / ออเดอร์รอผลิต / สั่งซื้อ / รับเข้า
+      </div>
+    </div>
+
+    <div id="factoryOverviewBox"></div>
+    <div id="factoryNeedBox"></div>
+    <div id="factoryStockBox"></div>
+    <div id="factoryPoBox"></div>
+    <div id="factoryReceiveBox"></div>
+  `;
+
+  setFactoryTodayDate_();
+
+  await loadFactoryStockData();
+}
+
+function setFactoryTodayDate_() {
+  const el =
+    document.getElementById('factoryDeliveryDate');
+
+  if (!el) return;
+
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+
+  el.value = `${yyyy}-${mm}-${dd}`;
+}
+
+async function loadFactoryStockData() {
+  const deliveryDate =
+    document.getElementById('factoryDeliveryDate').value;
+
+  document.getElementById('factoryOverviewBox').innerHTML =
+    `<div class="card"><div class="status">กำลังโหลดข้อมูลโรงงาน...</div></div>`;
+
+  try {
+    const data =
+      await apiGet({
+        action: 'factoryStockData',
+        lineUserId: lineUserId,
+        deliveryDate: deliveryDate
+      });
+
+    if (!data.ok) {
+      document.getElementById('factoryOverviewBox').innerHTML = `
+        <div class="card">
+          <div class="status">${data.message || 'โหลดข้อมูลไม่สำเร็จ'}</div>
+        </div>
+      `;
+      return;
+    }
+
+    factoryStockData = data;
+
+    renderFactoryOverview_();
+    renderFactoryNeed_();
+    renderFactoryStockBalance_();
+    renderFactoryPurchaseOrderForm_();
+    renderFactoryReceivePO_();
+
+  } catch (err) {
+    document.getElementById('factoryOverviewBox').innerHTML = `
+      <div class="card">
+        <div class="status">
+          โหลดข้อมูลไม่สำเร็จ: ${err.message || JSON.stringify(err)}
+        </div>
+      </div>
+    `;
+  }
+}
+
+function renderFactoryOverview_() {
+  const data =
+    factoryStockData || {};
+
+  const stockRows =
+    data.stock_balance || [];
+
+  const need =
+    data.production_need || {};
+
+  const materialNeedRows =
+    need.material_rows || [];
+
+  const lowCount =
+    stockRows.filter(function(row) {
+      return row.status === 'LOW' || row.status === 'NEGATIVE';
+    }).length;
+
+  const shortageCount =
+    materialNeedRows.filter(function(row) {
+      return Number(row.after_qty || 0) < 0;
+    }).length;
+
+  const totalProductionQty =
+    (need.product_rows || []).reduce(function(sum, row) {
+      return sum + Number(row.qty || 0);
+    }, 0);
+
+  const openPoCount =
+    (data.open_pos || []).length;
+
+  document.getElementById('factoryOverviewBox').innerHTML = `
+    <div class="card">
+      <h2>ภาพรวมโรงงาน</h2>
+
+      <div class="dashboard-grid">
+        <div class="metric-card">
+          <div class="metric-title">วัตถุดิบต่ำ/ติดลบ</div>
+          <div class="metric-value">${lowCount.toLocaleString()}</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-title">ต้องผลิตวันนี้</div>
+          <div class="metric-value">${totalProductionQty.toLocaleString()}</div>
+          <div class="small">ขวด/ชิ้น จากใบเติมหน้าร้าน</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-title">วัตถุดิบขาดหลังผลิต</div>
+          <div class="metric-value">${shortageCount.toLocaleString()}</div>
+        </div>
+
+        <div class="metric-card">
+          <div class="metric-title">PO ค้างรับ</div>
+          <div class="metric-value">${openPoCount.toLocaleString()}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderFactoryNeed_() {
+  const need =
+    (factoryStockData && factoryStockData.production_need) || {};
+
+  let html = `
+    <div class="card">
+      <h2>ต้องผลิตจากออเดอร์หน้าร้าน</h2>
+  `;
+
+  html += `
+    <h3>สรุปตามสินค้า</h3>
+  `;
+
+  if (!need.product_rows || !need.product_rows.length) {
+    html += `<div class="status">ไม่มีออเดอร์รอผลิตในวันที่เลือก</div>`;
+  } else {
+    html += `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>สินค้า</th>
+              <th>จำนวน</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    need.product_rows.forEach(function(row) {
+      html += `
+        <tr>
+          <td class="product">
+            ${row.product_name}
+            <div class="small">${row.product_code}</div>
+          </td>
+          <td><b>${Number(row.qty || 0).toLocaleString()}</b></td>
+        </tr>
+      `;
+    });
+
+    html += `</tbody></table></div>`;
+  }
+
+  html += `<h3 style="margin-top:18px;">สรุปตามสาขา</h3>`;
+
+  if (!need.branch_rows || !need.branch_rows.length) {
+    html += `<div class="status">ไม่มีข้อมูลสาขา</div>`;
+  } else {
+    need.branch_rows.forEach(function(branch) {
+      const productText =
+        (branch.product_rows || [])
+          .map(function(p) {
+            return `${p.product_code} ${Number(p.qty || 0).toLocaleString()}`;
+          })
+          .join(', ');
+
+      html += `
+        <div class="branch-card">
+          <b>${branch.branch_name}</b>
+          <div>รวม: ${Number(branch.qty || 0).toLocaleString()}</div>
+          <div class="small">${productText}</div>
+        </div>
+      `;
+    });
+  }
+
+  html += `<h3 style="margin-top:18px;">วัตถุดิบที่ต้องใช้</h3>`;
+
+  if (!need.material_rows || !need.material_rows.length) {
+    html += `<div class="status">ไม่มีรายการวัตถุดิบที่ต้องใช้</div>`;
+  } else {
+    html += `
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>วัตถุดิบ</th>
+              <th>คงเหลือ</th>
+              <th>ต้องใช้</th>
+              <th>หลังผลิต</th>
+              <th>หน่วย</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    need.material_rows.forEach(function(row) {
+      const afterQty =
+        Number(row.after_qty || 0);
+
+      const dangerStyle =
+        afterQty < 0
+          ? 'color:#dc2626;font-weight:bold;'
+          : 'font-weight:bold;';
+
+      html += `
+        <tr>
+          <td class="product">${row.material_name}</td>
+          <td>${Number(row.current_qty || 0).toLocaleString()}</td>
+          <td>${Number(row.required_qty || 0).toLocaleString()}</td>
+          <td style="${dangerStyle}">
+            ${afterQty.toLocaleString()}
+          </td>
+          <td>${row.base_unit || ''}</td>
+        </tr>
+      `;
+    });
+
+    html += `</tbody></table></div>`;
+  }
+
+  html += `</div>`;
+
+  document.getElementById('factoryNeedBox').innerHTML = html;
+}
+
+function renderFactoryStockBalance_() {
+  const rows =
+    (factoryStockData && factoryStockData.stock_balance) || [];
+
+  let html = `
+    <div class="card">
+      <h2>สต๊อกวัตถุดิบคงเหลือ</h2>
+
+      <div class="small">
+        คำนวณจาก Factory_Stock_Ledger
+      </div>
+  `;
+
+  if (!rows.length) {
+    html += `<div class="status">ยังไม่มีข้อมูลวัตถุดิบ</div>`;
+  } else {
+    html += `
+      <div class="table-wrap" style="margin-top:12px;">
+        <table>
+          <thead>
+            <tr>
+              <th>วัตถุดิบ</th>
+              <th>หมวด</th>
+              <th>คงเหลือ</th>
+              <th>ขั้นต่ำ</th>
+              <th>หน่วย</th>
+              <th>สถานะ</th>
+            </tr>
+          </thead>
+          <tbody>
+    `;
+
+    rows.forEach(function(row) {
+      const statusText =
+        row.status === 'NEGATIVE'
+          ? 'ติดลบ'
+          : row.status === 'LOW'
+            ? 'ต่ำ'
+            : 'ปกติ';
+
+      const statusStyle =
+        row.status === 'NEGATIVE'
+          ? 'color:#dc2626;font-weight:bold;'
+          : row.status === 'LOW'
+            ? 'color:#f59e0b;font-weight:bold;'
+            : 'color:#16a34a;font-weight:bold;';
+
+      html += `
+        <tr>
+          <td class="product">
+            ${row.material_name}
+            <div class="small">${row.material_id}</div>
+          </td>
+          <td>${row.category || '-'}</td>
+          <td><b>${Number(row.current_qty || 0).toLocaleString()}</b></td>
+          <td>${Number(row.min_qty || 0).toLocaleString()}</td>
+          <td>${row.base_unit || ''}</td>
+          <td style="${statusStyle}">${statusText}</td>
+        </tr>
+      `;
+    });
+
+    html += `</tbody></table></div>`;
+  }
+
+  html += `</div>`;
+
+  document.getElementById('factoryStockBox').innerHTML = html;
+}
+
+
+function renderFactoryPurchaseOrderForm_() {
+  factoryPoItems = [];
+
+  const materials =
+    (factoryStockData && factoryStockData.materials) || [];
+
+  const packs =
+    (factoryStockData && factoryStockData.pack_sizes) || [];
+
+  let html = `
+    <div class="card">
+      <h2>สั่งซื้อวัตถุดิบ</h2>
+
+      <label>วันที่สั่ง</label>
+      <input type="date" id="factoryPoOrderDate">
+
+      <label>Supplier</label>
+      <input
+        type="text"
+        id="factoryPoSupplier"
+        placeholder="เช่น เจ้าน้ำส้ม A">
+
+      <label>วันที่คาดว่าจะรับ</label>
+      <input type="date" id="factoryPoExpectedDate">
+
+      <label>หมายเหตุ</label>
+      <textarea id="factoryPoNote" rows="2"></textarea>
+
+      <h3 style="margin-top:18px;">เพิ่มรายการ</h3>
+
+      <label>วัตถุดิบ</label>
+      <select id="factoryPoMaterial">
+        ${materials.map(function(m) {
+          return `
+            <option value="${m.material_id}">
+              ${m.material_name} (${m.base_unit})
+            </option>
+          `;
+        }).join('')}
+      </select>
+
+      <label>แพ็ก</label>
+      <select id="factoryPoPack">
+        ${packs.map(function(p) {
+          return `
+            <option value="${p.pack_id}">
+              ${p.pack_name} = ${Number(p.base_qty || 0).toLocaleString()} ${p.base_unit}
+            </option>
+          `;
+        }).join('')}
+      </select>
+
+      <label>จำนวนแพ็ก</label>
+      <input
+        type="number"
+        id="factoryPoPackQty"
+        min="0"
+        inputmode="decimal"
+        placeholder="0">
+
+      <button onclick="addFactoryPoItem_()">
+        เพิ่มรายการ
+      </button>
+
+      <div id="factoryPoItemsBox" style="margin-top:12px;"></div>
+
+      <button
+        onclick="submitFactoryPo_()"
+        style="margin-top:12px;">
+        สร้างใบสั่งวัตถุดิบ
+      </button>
+    </div>
+  `;
+
+  document.getElementById('factoryPoBox').innerHTML = html;
+
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+
+  document.getElementById('factoryPoOrderDate').value =
+    `${yyyy}-${mm}-${dd}`;
+}
+
+
+function addFactoryPoItem_() {
+  const materialId =
+    document.getElementById('factoryPoMaterial').value;
+
+  const packId =
+    document.getElementById('factoryPoPack').value;
+
+  const qty =
+    Number(document.getElementById('factoryPoPackQty').value || 0);
+
+  if (!materialId || !packId || qty <= 0) {
+    alert('กรุณาเลือกวัตถุดิบ แพ็ก และจำนวนแพ็ก');
+    return;
+  }
+
+  const material =
+    (factoryStockData.materials || []).find(function(m) {
+      return m.material_id === materialId;
+    }) || {};
+
+  const pack =
+    (factoryStockData.pack_sizes || []).find(function(p) {
+      return p.pack_id === packId;
+    }) || {};
+
+  factoryPoItems.push({
+    material_id: materialId,
+    material_name: material.material_name || materialId,
+    pack_id: packId,
+    pack_name: pack.pack_name || packId,
+    ordered_pack_qty: qty,
+    base_qty: Number(pack.base_qty || 0),
+    base_unit: pack.base_unit || '',
+  });
+
+  document.getElementById('factoryPoPackQty').value = '';
+
+  renderFactoryPoItems_();
+}
+
+function renderFactoryPoItems_() {
+  const box =
+    document.getElementById('factoryPoItemsBox');
+
+  if (!factoryPoItems.length) {
+    box.innerHTML = `<div class="status">ยังไม่มีรายการ</div>`;
+    return;
+  }
+
+  let html = `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>วัตถุดิบ</th>
+            <th>แพ็ก</th>
+            <th>จำนวนแพ็ก</th>
+            <th>รวมหน่วยกลาง</th>
+            <th>ลบ</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  factoryPoItems.forEach(function(item, index) {
+    const totalBase =
+      Number(item.ordered_pack_qty || 0) *
+      Number(item.base_qty || 0);
+
+    html += `
+      <tr>
+        <td class="product">${item.material_name}</td>
+        <td>${item.pack_name}</td>
+        <td>${Number(item.ordered_pack_qty || 0).toLocaleString()}</td>
+        <td>${totalBase.toLocaleString()} ${item.base_unit}</td>
+        <td>
+          <button class="danger" onclick="removeFactoryPoItem_(${index})">
+            ลบ
+          </button>
+        </td>
+      </tr>
+    `;
+  });
+
+  html += `</tbody></table></div>`;
+
+  box.innerHTML = html;
+}
+
+function removeFactoryPoItem_(index) {
+  factoryPoItems.splice(index, 1);
+  renderFactoryPoItems_();
+}
+
+
+
+async function submitFactoryPo_() {
+  const orderDate =
+    document.getElementById('factoryPoOrderDate').value;
+
+  const supplier =
+    document.getElementById('factoryPoSupplier').value.trim();
+
+  const expectedDate =
+    document.getElementById('factoryPoExpectedDate').value;
+
+  const note =
+    document.getElementById('factoryPoNote').value.trim();
+
+  if (!orderDate) {
+    alert('กรุณาระบุวันที่สั่ง');
+    return;
+  }
+
+  if (!supplier) {
+    alert('กรุณาระบุ Supplier');
+    return;
+  }
+
+  if (!factoryPoItems.length) {
+    alert('กรุณาเพิ่มรายการวัตถุดิบ');
+    return;
+  }
+
+  if (!confirm('ยืนยันสร้างใบสั่งวัตถุดิบ?')) {
+    return;
+  }
+
+  try {
+    const data =
+      await apiGet({
+        action: 'createFactoryPO',
+        payload: JSON.stringify({
+          lineUserId: lineUserId,
+          order_date: orderDate,
+          supplier_name: supplier,
+          expected_receive_date: expectedDate,
+          note: note,
+          items: factoryPoItems.map(function(item) {
+            return {
+              material_id: item.material_id,
+              pack_id: item.pack_id,
+              ordered_pack_qty: item.ordered_pack_qty
+            };
+          })
+        })
+      });
+
+    if (!data.ok) {
+      alert(data.message || 'สร้าง PO ไม่สำเร็จ');
+      return;
+    }
+
+    alert(
+      'สร้างใบสั่งวัตถุดิบเรียบร้อย\n\n' +
+      data.po_id
+    );
+
+    await loadFactoryStockData();
+
+  } catch (err) {
+    alert('สร้าง PO ไม่สำเร็จ: ' + (err.message || err));
+  }
+}
+
+
+function renderFactoryReceivePO_() {
+  const openPOs =
+    (factoryStockData && factoryStockData.open_pos) || [];
+
+  let html = `
+    <div class="card">
+      <h2>รับเข้าวัตถุดิบ / PO ค้างรับ</h2>
+  `;
+
+  if (!openPOs.length) {
+    html += `
+      <div class="status">
+        ไม่มี PO ค้างรับ
+      </div>
+    `;
+  } else {
+    html += `
+      <label>วันที่รับจริง</label>
+      <input type="date" id="factoryReceiveDate">
+    `;
+
+    openPOs.forEach(function(po, poIndex) {
+      html += `
+        <div class="branch-card">
+          <b>${po.po_id}</b>
+          <div>Supplier: ${po.supplier_name || '-'}</div>
+          <div class="small">
+            วันที่สั่ง: ${formatFactoryDate_(po.order_date)}
+            |
+            คาดรับ: ${formatFactoryDate_(po.expected_receive_date)}
+          </div>
+          <div class="small">สถานะ: ${po.status}</div>
+
+          <div class="table-wrap" style="margin-top:10px;">
+            <table>
+              <thead>
+                <tr>
+                  <th>วัตถุดิบ</th>
+                  <th>แพ็ก</th>
+                  <th>สั่ง</th>
+                  <th>รับแล้ว</th>
+                  <th>ค้างรับ</th>
+                  <th>รับครั้งนี้</th>
+                </tr>
+              </thead>
+              <tbody>
+      `;
+
+      (po.items || []).forEach(function(item, itemIndex) {
+        html += `
+          <tr>
+            <td class="product">${item.material_name}</td>
+            <td>${item.pack_name}</td>
+            <td>${Number(item.ordered_pack_qty || 0).toLocaleString()}</td>
+            <td>${Number(item.received_pack_qty || 0).toLocaleString()}</td>
+            <td><b>${Number(item.remain_pack_qty || 0).toLocaleString()}</b></td>
+            <td>
+              <input
+                type="number"
+                min="0"
+                max="${Number(item.remain_pack_qty || 0)}"
+                id="factory_receive_${poIndex}_${itemIndex}"
+                style="width:90px;"
+                placeholder="0">
+            </td>
+          </tr>
+        `;
+      });
+
+      html += `
+              </tbody>
+            </table>
+          </div>
+
+          <button
+            onclick="submitFactoryReceivePO_(${poIndex})"
+            style="margin-top:10px;">
+            รับเข้า PO นี้
+          </button>
+        </div>
+      `;
+    });
+  }
+
+  html += `</div>`;
+
+  document.getElementById('factoryReceiveBox').innerHTML = html;
+
+  const receiveDateEl =
+    document.getElementById('factoryReceiveDate');
+
+  if (receiveDateEl) {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+
+    receiveDateEl.value = `${yyyy}-${mm}-${dd}`;
+  }
+}
+
+function formatFactoryDate_(value) {
+  if (!value) return '-';
+
+  const text =
+    String(value || '').trim();
+
+  if (text.includes('GMT')) {
+    const d = new Date(value);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+
+  return text;
+}
+
+
+async function submitFactoryReceivePO_(poIndex) {
+  const po =
+    (factoryStockData.open_pos || [])[poIndex];
+
+  if (!po) {
+    alert('ไม่พบ PO');
+    return;
+  }
+
+  const receiveDate =
+    document.getElementById('factoryReceiveDate').value;
+
+  if (!receiveDate) {
+    alert('กรุณาระบุวันที่รับจริง');
+    return;
+  }
+
+  const items = [];
+
+  (po.items || []).forEach(function(item, itemIndex) {
+    const el =
+      document.getElementById(
+        'factory_receive_' + poIndex + '_' + itemIndex
+      );
+
+    const qty =
+      Number(el && el.value ? el.value : 0);
+
+    if (qty > 0) {
+      items.push({
+        item_id: item.item_id,
+        receive_pack_qty: qty
+      });
+    }
+  });
+
+  if (!items.length) {
+    alert('กรุณากรอกจำนวนรับเข้าอย่างน้อย 1 รายการ');
+    return;
+  }
+
+  if (!confirm('ยืนยันรับเข้าวัตถุดิบ PO ' + po.po_id + '?')) {
+    return;
+  }
+
+  try {
+    const data =
+      await apiGet({
+        action: 'receiveFactoryPO',
+        payload: JSON.stringify({
+          lineUserId: lineUserId,
+          po_id: po.po_id,
+          receive_date: receiveDate,
+          items: items
+        })
+      });
+
+    if (!data.ok) {
+      alert(data.message || 'รับเข้าไม่สำเร็จ');
+      return;
+    }
+
+    alert(
+      'รับเข้าวัตถุดิบเรียบร้อย\n\n' +
+      'PO: ' + data.po_id
+    );
+
+    await loadFactoryStockData();
+
+  } catch (err) {
+    alert('รับเข้าไม่สำเร็จ: ' + (err.message || err));
+  }
+}
+
+
+
     
     main();
   </script>
