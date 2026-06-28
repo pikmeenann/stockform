@@ -4602,13 +4602,12 @@ function renderFactoryPurchaseOrderForm_() {
       <input type="date" id="factoryPoOrderDate">
 
       <label>Supplier</label>
-      <input
-        type="text"
-        id="factoryPoSupplier"
-        placeholder="เช่น เจ้าน้ำส้ม A">
-
-      <label>วันที่คาดว่าจะรับ</label>
-      <input type="date" id="factoryPoExpectedDate">
+        <select id="factoryPoSupplier" onchange="filterFactoryPackOptions_()">
+          <option value="กรีนการ์เด้น">กรีนการ์เด้น</option>
+          <option value="NLTY">NLTY</option>
+          <option value="Shopee">Shopee</option>
+          <option value="อื่นๆ">อื่นๆ</option>
+        </select>
 
       <label>หมายเหตุ</label>
       <textarea id="factoryPoNote" rows="2"></textarea>
@@ -4616,7 +4615,7 @@ function renderFactoryPurchaseOrderForm_() {
       <h3 style="margin-top:18px;">เพิ่มรายการ</h3>
 
       <label>วัตถุดิบ</label>
-      <select id="factoryPoMaterial">
+      <select id="factoryPoMaterial" onchange="filterFactoryPackOptions_()">
         ${materials.map(function(m) {
           return `
             <option value="${m.material_id}">
@@ -4774,8 +4773,7 @@ async function submitFactoryPo_() {
   const supplier =
     document.getElementById('factoryPoSupplier').value.trim();
 
-  const expectedDate =
-    document.getElementById('factoryPoExpectedDate').value;
+  const expectedDate = '';
 
   const note =
     document.getElementById('factoryPoNote').value.trim();
@@ -5030,7 +5028,62 @@ async function submitFactoryReceivePO_(poIndex) {
   }
 }
 
+function filterFactoryPackOptions_() {
+  const supplier =
+    document.getElementById('factoryPoSupplier')
+      ? document.getElementById('factoryPoSupplier').value
+      : '';
 
+  const materialId =
+    document.getElementById('factoryPoMaterial')
+      ? document.getElementById('factoryPoMaterial').value
+      : '';
+
+  const packSelect =
+    document.getElementById('factoryPoPack');
+
+  if (!packSelect || !factoryStockData) return;
+
+  const packs =
+    factoryStockData.pack_sizes || [];
+
+  let filtered =
+    packs.filter(function(pack) {
+      if (pack.material_id && materialId) {
+        return String(pack.material_id).toUpperCase() ===
+          String(materialId).toUpperCase();
+      }
+
+      return true;
+    });
+
+  if (supplier === 'กรีนการ์เด้น') {
+    filtered = filtered.filter(function(pack) {
+      return String(pack.pack_id || '').includes('_GG_');
+    });
+  }
+
+  if (supplier === 'NLTY') {
+    filtered = filtered.filter(function(pack) {
+      return String(pack.pack_id || '').includes('RTE_PACK');
+    });
+  }
+
+  if (supplier === 'Shopee') {
+    filtered = filtered.filter(function(pack) {
+      return String(pack.note || '').toLowerCase().includes('shopee');
+    });
+  }
+
+  packSelect.innerHTML =
+    filtered.map(function(p) {
+      return `
+        <option value="${p.pack_id}">
+          ${p.pack_name} = ${Number(p.base_qty || 0).toLocaleString()} ${p.base_unit}
+        </option>
+      `;
+    }).join('');
+}
 
     
     main();
