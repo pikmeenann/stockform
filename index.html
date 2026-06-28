@@ -4184,6 +4184,116 @@ async function loadFactoryStockData() {
   }
 }
 
+
+function filterFactoryPurchaseOptions_() {
+  const supplierEl =
+    document.getElementById('factoryPoSupplier');
+
+  const materialEl =
+    document.getElementById('factoryPoMaterial');
+
+  const packEl =
+    document.getElementById('factoryPoPack');
+
+  if (!supplierEl || !materialEl || !packEl || !factoryStockData) return;
+
+  const supplier =
+    supplierEl.value;
+
+  const currentMaterialId =
+    materialEl.value;
+
+  const materials =
+    factoryStockData.materials || [];
+
+  const packs =
+    factoryStockData.pack_sizes || [];
+
+  let allowedPackRows =
+    packs.filter(function(pack) {
+      const note =
+        String(pack.note || '').trim();
+
+      if (supplier === 'กรีนการ์เด้น') {
+        return note === 'กรีนการ์เด้น';
+      }
+
+      if (supplier === 'NLTY') {
+        return note === 'NLTY';
+      }
+
+      if (supplier === 'Shopee') {
+        return note === 'Shopee';
+      }
+
+      if (supplier === 'โรงงานผลิต') {
+        return note === 'โรงงานผลิต';
+      }
+
+      if (supplier === 'สติ๊กเกอร์') {
+        return note === 'สติ๊กเกอร์';
+      }
+
+      if (supplier === 'อื่นๆ') {
+        return note === 'อื่นๆ';
+      }
+
+      return true;
+    });
+
+  const allowedMaterialIds = {};
+  allowedPackRows.forEach(function(pack) {
+    const materialId =
+      String(pack.material_id || '').trim().toUpperCase();
+
+    if (materialId) {
+      allowedMaterialIds[materialId] = true;
+    }
+  });
+
+  const allowedMaterials =
+    materials.filter(function(material) {
+      return allowedMaterialIds[
+        String(material.material_id || '').trim().toUpperCase()
+      ];
+    });
+
+  materialEl.innerHTML =
+    allowedMaterials.map(function(m) {
+      return `
+        <option value="${m.material_id}">
+          ${m.material_name} (${m.base_unit})
+        </option>
+      `;
+    }).join('');
+
+  if (
+    currentMaterialId &&
+    allowedMaterialIds[String(currentMaterialId).toUpperCase()]
+  ) {
+    materialEl.value = currentMaterialId;
+  }
+
+  const selectedMaterialId =
+    materialEl.value;
+
+  const filteredPacks =
+    allowedPackRows.filter(function(pack) {
+      return String(pack.material_id || '').trim().toUpperCase() ===
+        String(selectedMaterialId || '').trim().toUpperCase();
+    });
+
+  packEl.innerHTML =
+    filteredPacks.map(function(p) {
+      return `
+        <option value="${p.pack_id}">
+          ${p.pack_name} = ${Number(p.base_qty || 0).toLocaleString()} ${p.base_unit}
+        </option>
+      `;
+    }).join('');
+}
+    
+
 function renderFactoryOverview_() {
   const data =
     factoryStockData || {};
@@ -4591,9 +4701,6 @@ function renderFactoryPurchaseOrderForm_() {
   const materials =
     (factoryStockData && factoryStockData.materials) || [];
 
-  const packs =
-    (factoryStockData && factoryStockData.pack_sizes) || [];
-
   let html = `
     <div class="card">
       <h2>สั่งซื้อวัตถุดิบ</h2>
@@ -4602,12 +4709,14 @@ function renderFactoryPurchaseOrderForm_() {
       <input type="date" id="factoryPoOrderDate">
 
       <label>Supplier</label>
-        <select id="factoryPoSupplier" onchange="filterFactoryPackOptions_()">
-          <option value="กรีนการ์เด้น">กรีนการ์เด้น</option>
-          <option value="NLTY">NLTY</option>
-          <option value="Shopee">Shopee</option>
-          <option value="อื่นๆ">อื่นๆ</option>
-        </select>
+      <select id="factoryPoSupplier" onchange="filterFactoryPurchaseOptions_()">
+        <option value="กรีนการ์เด้น">กรีนการ์เด้น</option>
+        <option value="NLTY">NLTY</option>
+        <option value="Shopee">Shopee</option>
+        <option value="โรงงานผลิต">โรงงานผลิต</option>
+        <option value="สติ๊กเกอร์">สติ๊กเกอร์</option>
+        <option value="อื่นๆ">อื่นๆ</option>
+      </select>
 
       <label>หมายเหตุ</label>
       <textarea id="factoryPoNote" rows="2"></textarea>
@@ -4615,7 +4724,7 @@ function renderFactoryPurchaseOrderForm_() {
       <h3 style="margin-top:18px;">เพิ่มรายการ</h3>
 
       <label>วัตถุดิบ</label>
-      <select id="factoryPoMaterial" onchange="filterFactoryPackOptions_()">
+      <select id="factoryPoMaterial" onchange="filterFactoryPurchaseOptions_()">
         ${materials.map(function(m) {
           return `
             <option value="${m.material_id}">
@@ -4626,15 +4735,7 @@ function renderFactoryPurchaseOrderForm_() {
       </select>
 
       <label>แพ็ก</label>
-      <select id="factoryPoPack">
-        ${packs.map(function(p) {
-          return `
-            <option value="${p.pack_id}">
-              ${p.pack_name} = ${Number(p.base_qty || 0).toLocaleString()} ${p.base_unit}
-            </option>
-          `;
-        }).join('')}
-      </select>
+      <select id="factoryPoPack"></select>
 
       <label>จำนวนแพ็ก</label>
       <input
@@ -4667,6 +4768,9 @@ function renderFactoryPurchaseOrderForm_() {
 
   document.getElementById('factoryPoOrderDate').value =
     `${yyyy}-${mm}-${dd}`;
+
+  filterFactoryPurchaseOptions_();
+  renderFactoryPoItems_();
 }
 
 
@@ -4773,8 +4877,6 @@ async function submitFactoryPo_() {
   const supplier =
     document.getElementById('factoryPoSupplier').value.trim();
 
-  const expectedDate = '';
-
   const note =
     document.getElementById('factoryPoNote').value.trim();
 
@@ -4805,7 +4907,7 @@ async function submitFactoryPo_() {
           lineUserId: lineUserId,
           order_date: orderDate,
           supplier_name: supplier,
-          expected_receive_date: expectedDate,
+          expected_receive_date: '',
           note: note,
           items: factoryPoItems.map(function(item) {
             return {
@@ -4864,7 +4966,7 @@ function renderFactoryReceivePO_() {
           <div class="small">
             วันที่สั่ง: ${formatFactoryDate_(po.order_date)}
             |
-            คาดรับ: ${formatFactoryDate_(po.expected_receive_date)}
+            วันที่สั่ง: ${formatFactoryDate_(po.order_date)}
           </div>
           <div class="small">สถานะ: ${po.status}</div>
 
