@@ -4361,16 +4361,136 @@ function renderFactoryNeed_() {
   document.getElementById('factoryNeedBox').innerHTML = html;
 }
 
+
+function getFactoryMaterialCategoryStyle_(category) {
+  const c =
+    String(category || '').trim().toUpperCase();
+
+  const map = {
+    BOTTLE: {
+      label: 'ขวด',
+      bg: '#eff6ff',
+      border: '#bfdbfe',
+      color: '#1d4ed8',
+      order: 1,
+    },
+    JUICE: {
+      label: 'น้ำ',
+      bg: '#ecfdf5',
+      border: '#bbf7d0',
+      color: '#15803d',
+      order: 2,
+    },
+    SYRUP: {
+      label: 'ไซรัป',
+      bg: '#fdf2f8',
+      border: '#fbcfe8',
+      color: '#be185d',
+      order: 3,
+    },
+    POWDER: {
+      label: 'ผง',
+      bg: '#fffbeb',
+      border: '#fde68a',
+      color: '#b45309',
+      order: 4,
+    },
+    LABEL: {
+      label: 'สติ๊กเกอร์',
+      bg: '#f5f3ff',
+      border: '#ddd6fe',
+      color: '#6d28d9',
+      order: 5,
+    },
+  };
+
+  return map[c] || {
+    label: c || '-',
+    bg: '#f9fafb',
+    border: '#e5e7eb',
+    color: '#374151',
+    order: 99,
+  };
+}
+
+function getFactoryMaterialSortOrder_(materialId) {
+  const id =
+    String(materialId || '').trim().toUpperCase();
+
+  const order = {
+    // ขวด
+    FRUIT_BOTTLE_CAP: 101,
+    TEA_BOTTLE_CAP: 102,
+    LEMON_BOTTLE_CAP: 103,
+    SHOT_BOTTLE_CAP: 104,
+
+    // น้ำ
+    ORANGE_JUICE: 201,
+    GUAVA_JUICE: 202,
+    PINEAPPLE_JUICE: 203,
+    ORANGE_CARROT_JUICE: 204,
+    APPLE_JUICE: 205,
+    TOMATO_JUICE: 206,
+    STRAWBERRY_JUICE: 207,
+    LYCHEE_JUICE: 208,
+    PASSION_JUICE: 209,
+    MANGO_JUICE: 210,
+    OOLONG_TEA: 211,
+    WATER: 212,
+    CLEANSHOT: 213,
+
+    // ไซรัป
+    LEMON_LIME: 301,
+    HALES: 302,
+    SHINEMUSCAT_SYRUP: 303,
+    STRAWBERRY_SYRUP: 304,
+    LYCHEE_SYRUP: 305,
+
+    // ผง
+    KALE_POWDER: 401,
+    GINGER_POWDER: 402,
+    LEMON_POWDER: 403,
+
+    // สติ๊กเกอร์
+    LABEL_CADO: 501,
+    LABEL_ORJ: 502,
+    LABEL_GUA: 503,
+    LABEL_PAP: 504,
+    LABEL_OCR: 505,
+    LABEL_SUN: 506,
+    LABEL_PUN: 507,
+    LABEL_RAN: 508,
+    LABEL_FAT: 509,
+    LABEL_TOM: 510,
+    LABEL_LYC: 511,
+    LABEL_MAN: 512,
+    LABEL_CLS: 513,
+    LABEL_TSM: 514,
+    LABEL_TSR: 515,
+    LABEL_TLC: 516,
+    LABEL_LEM: 517,
+  };
+
+  return order[id] || 9999;
+}
+    
+
 function renderFactoryStockBalance_() {
-  const rows =
+  let rows =
     (factoryStockData && factoryStockData.stock_balance) || [];
+
+  rows =
+    rows.slice().sort(function(a, b) {
+      return getFactoryMaterialSortOrder_(a.material_id) -
+        getFactoryMaterialSortOrder_(b.material_id);
+    });
 
   let html = `
     <div class="card">
       <h2>สต๊อกวัตถุดิบคงเหลือ</h2>
 
       <div class="small">
-        คำนวณจาก Factory_Stock_Ledger
+        เรียงตามหมวด: ขวด → น้ำ → ไซรัป → ผง → สติ๊กเกอร์
       </div>
   `;
 
@@ -4382,8 +4502,8 @@ function renderFactoryStockBalance_() {
         <table>
           <thead>
             <tr>
-              <th>วัตถุดิบ</th>
               <th>หมวด</th>
+              <th>วัตถุดิบ</th>
               <th>คงเหลือ</th>
               <th>ขั้นต่ำ</th>
               <th>หน่วย</th>
@@ -4394,6 +4514,9 @@ function renderFactoryStockBalance_() {
     `;
 
     rows.forEach(function(row) {
+      const cat =
+        getFactoryMaterialCategoryStyle_(row.category);
+
       const statusText =
         row.status === 'NEGATIVE'
           ? 'ติดลบ'
@@ -4409,21 +4532,51 @@ function renderFactoryStockBalance_() {
             : 'color:#16a34a;font-weight:bold;';
 
       html += `
-        <tr>
+        <tr style="background:${cat.bg};">
+          <td>
+            <span style="
+              display:inline-block;
+              padding:4px 8px;
+              border-radius:999px;
+              background:#ffffff;
+              border:1px solid ${cat.border};
+              color:${cat.color};
+              font-size:12px;
+              font-weight:bold;
+            ">
+              ${cat.label}
+            </span>
+          </td>
+
           <td class="product">
             ${row.material_name}
             <div class="small">${row.material_id}</div>
           </td>
-          <td>${row.category || '-'}</td>
-          <td><b>${Number(row.current_qty || 0).toLocaleString()}</b></td>
-          <td>${Number(row.min_qty || 0).toLocaleString()}</td>
-          <td>${row.base_unit || ''}</td>
-          <td style="${statusStyle}">${statusText}</td>
+
+          <td>
+            <b>${Number(row.current_qty || 0).toLocaleString()}</b>
+          </td>
+
+          <td>
+            ${Number(row.min_qty || 0).toLocaleString()}
+          </td>
+
+          <td>
+            ${row.base_unit || ''}
+          </td>
+
+          <td style="${statusStyle}">
+            ${statusText}
+          </td>
         </tr>
       `;
     });
 
-    html += `</tbody></table></div>`;
+    html += `
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   html += `</div>`;
