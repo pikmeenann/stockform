@@ -2722,8 +2722,12 @@ async function renderRestockAdminPage() {
     <div class="card">
       <h1>อนุมัติเติมสินค้า</h1>
 
-      <label>ผู้ยืนยัน</label>
-      <input id="confirmedBy" type="text" placeholder="เช่น หัวหน้า / โรงงาน">
+      <div class="status">
+      ผู้ยืนยัน: ${appData.user.name || '-'}
+      <div class="small">
+        ระบบดึง LINE UID อัตโนมัติ ไม่ต้องกรอกชื่อเอง
+      </div>
+    </div>
 
       <div id="restockAdminList" class="status" style="margin-top:12px;">
         กำลังโหลดรายการ...
@@ -2849,7 +2853,7 @@ function renderRestockAdminGroups() {
           id="admin_delivery_date_${groupIndex}"
           type="date"
           value="${group.delivery_date || group.requested_delivery_date || ''}"
-          ${groupStatus === 'APPROVED' ? 'disabled' : ''}>
+          ${['RECEIVED', 'RECEIVED_MANUAL', 'RECEIVED_AUTO', 'CANCELLED'].includes(groupStatus) ? 'disabled' : ''}>
 
         <div class="table-wrap" style="margin-top:12px;">
           <table>
@@ -2883,7 +2887,7 @@ function renderRestockAdminGroups() {
               inputmode="numeric"
               value="${item.confirmed_qty || ''}"
               style="width:70px;"
-              ${groupStatus === 'APPROVED' ? 'disabled' : ''}>
+              ${['RECEIVED', 'RECEIVED_MANUAL', 'RECEIVED_AUTO', 'CANCELLED'].includes(groupStatus) ? 'disabled' : ''}>
           </td>
         </tr>
       `;
@@ -2899,30 +2903,12 @@ if (
   groupStatus === 'PENDING' &&
   ['owner', 'manager', 'factory'].includes(appData.user.role)
 ) {
-  const confirmButtonText =
-    isFactoryRole_()
-      ? 'โรงงานยืนยันผลิต'
-      : 'อนุมัติทั้งใบนี้';
-
   html += `
     <button
       id="admin_btn_${groupIndex}"
-      onclick="confirmRestockAdminGroup(${groupIndex})">
-      ${confirmButtonText}
-    </button>
-  `;
-}
-
-if (
-  groupStatus === 'APPROVED' &&
-  ['owner', 'manager'].includes(appData.user.role)
-) {
-  html += `
-    <button
-      id="admin_receive_btn_${groupIndex}"
-      onclick="receiveRestockAdminGroup(${groupIndex})"
+      onclick="confirmRestockAdminGroup(${groupIndex})"
       style="background:#16a34a;">
-      รับสินค้าแล้ว
+      ยืนยันส่งจริงและเติมเข้าสต๊อก
     </button>
   `;
 }
@@ -2962,19 +2948,11 @@ async function confirmRestockAdminGroup(groupIndex) {
   const btn =
     document.getElementById('admin_btn_' + groupIndex);
 
-  const confirmedBy =
-    document.getElementById('confirmedBy').value.trim();
-
   const deliveryDate =
     document.getElementById('admin_delivery_date_' + groupIndex).value;
 
   if (!group || !group.request_id) {
     alert('ไม่พบเลขที่ใบสั่ง');
-    return;
-  }
-
-  if (!confirmedBy) {
-    alert('กรุณาระบุผู้ยืนยัน');
     return;
   }
 
@@ -2990,34 +2968,36 @@ async function confirmRestockAdminGroup(groupIndex) {
           'admin_confirmed_qty_' + groupIndex + '_' + itemIndex
         );
 
+      const confirmedQty =
+        el && el.value !== ''
+          ? Number(el.value || 0)
+          : Number(item.requested_qty || 0);
+
       return {
         row_number: item.row_number,
         product_code: item.product_code,
         product_name: item.product_name,
-        confirmed_qty: Number(el.value || 0),
+        confirmed_qty: confirmedQty,
         remark: item.remark || ''
       };
     });
 
   if (!items.some(item => Number(item.confirmed_qty || 0) > 0)) {
-    alert('กรุณาระบุจำนวนที่ยืนยันอย่างน้อย 1 รายการ');
+    alert('กรุณาระบุจำนวนส่งจริงอย่างน้อย 1 รายการ');
     return;
   }
 
-  const confirmMessage =
-  isFactoryRole_()
-    ? 'ยืนยันรับผลิตใบเติมสินค้า?\n\nเลขที่ '
-    : 'ยืนยันอนุมัติใบเติมสินค้า?\n\nเลขที่ ';
-
-if (!confirm(confirmMessage + group.request_id)) {
-  return;
-}
+  if (
+    !confirm(
+      'ยืนยันส่งจริงและเติมเข้าสต๊อกทันที?\n\nเลขที่ ' +
+      group.request_id
+    )
+  ) {
+    return;
+  }
 
   btn.disabled = true;
-  btn.textContent =
-  isFactoryRole_()
-    ? 'กำลังยืนยันผลิต...'
-    : 'กำลังอนุมัติ...';
+  btn.textContent = 'กำลังยืนยัน...';
 
   try {
     const data =
@@ -3026,72 +3006,23 @@ if (!confirm(confirmMessage + group.request_id)) {
         payload: JSON.stringify({
           request_id: group.request_id,
           delivery_date: deliveryDate,
-          confirmed_by: confirmedBy,
+          confirmed_by: appData.user.name || 'โรงงาน',
+          confirmed_by_uid: lineUserId,
+          lineUserId: lineUserId,
           items: items
         })
       });
 
     if (!data.ok) {
-      alert(data.message || 'อนุมัติไม่สำเร็จ');
+      alert(data.message || 'ยืนยันไม่สำเร็จ');
       btn.disabled = false;
-      btn.textContent = 'อนุมัติทั้งใบนี้';
+      btn.textContent = 'ยืนยันส่งจริงและเติมเข้าสต๊อก';
       return;
     }
 
     alert(
-  (
-    isFactoryRole_()
-      ? 'โรงงานยืนยันผลิตเรียบร้อย'
-      : 'อนุมัติเรียบร้อย'
-  ) +
-  '\n\nเลขที่ ' +
-  data.request_id
-);
-
-    await loadRestockAdminGroups();
-
-  } catch (err) {
-    alert('อนุมัติไม่สำเร็จ: ' + (err.message || err));
-    btn.disabled = false;
-    btn.textContent = 'อนุมัติทั้งใบนี้';
-  }
-}
-
-async function receiveRestockAdminGroup(groupIndex) {
-  const group =
-    pendingRestockGroups[groupIndex];
-
-  const btn =
-    document.getElementById('admin_receive_btn_' + groupIndex);
-
-  if (!group || !group.request_id) {
-    alert('ไม่พบเลขที่ใบสั่ง');
-    return;
-  }
-
-  if (!confirm('ยืนยันรับสินค้าเข้าสต๊อก?\n\nเลขที่ ' + group.request_id)) {
-    return;
-  }
-
-  btn.disabled = true;
-  btn.textContent = 'กำลังรับสินค้า...';
-
-  try {
-    const data =
-      await apiGet({
-        action: 'receiveRestockGroup',
-        requestId: group.request_id
-      });
-
-    if (!data.ok) {
-      alert(data.message || 'รับสินค้าไม่สำเร็จ');
-      btn.disabled = false;
-      btn.textContent = 'รับสินค้าแล้ว';
-      return;
-    }
-
-    alert(
-      'รับสินค้าเรียบร้อย\n\n' +
+      'ยืนยันและเติมเข้าสต๊อกเรียบร้อย\n\n' +
+      'เลขที่: ' + data.request_id + '\n' +
       'จำนวนรายการ: ' + (data.received_count || 0) + '\n' +
       'จำนวนรวม: ' + (data.received_qty || 0)
     );
@@ -3099,11 +3030,13 @@ async function receiveRestockAdminGroup(groupIndex) {
     await loadRestockAdminGroups();
 
   } catch (err) {
-    alert('รับสินค้าไม่สำเร็จ: ' + (err.message || err));
+    alert('ยืนยันไม่สำเร็จ: ' + (err.message || err));
     btn.disabled = false;
-    btn.textContent = 'รับสินค้าแล้ว';
+    btn.textContent = 'ยืนยันส่งจริงและเติมเข้าสต๊อก';
   }
 }
+
+
 
 async function renderVoidLogsPage() {
   if (!['manager', 'owner'].includes(appData.user.role)) {
