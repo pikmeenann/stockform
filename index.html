@@ -4170,7 +4170,6 @@ async function loadFactoryStockData() {
     renderFactoryOverview_();
     renderFactoryNeed_();
     renderFactoryStockBalance_();
-    renderFactoryPurchaseOrderForm_();
     renderFactoryReceivePO_();
 
   } catch (err) {
@@ -4481,6 +4480,31 @@ function renderFactoryStockBalance_() {
   let rows =
     (factoryStockData && factoryStockData.stock_balance) || [];
 
+  const packs =
+    (factoryStockData && factoryStockData.pack_sizes) || [];
+
+  const needRows =
+    (
+      factoryStockData &&
+      factoryStockData.production_need &&
+      factoryStockData.production_need.material_rows
+    ) || [];
+
+  const needMap = {};
+  needRows.forEach(function(row) {
+    needMap[String(row.material_id || '').trim().toUpperCase()] = row;
+  });
+
+  const packMap = {};
+  packs.forEach(function(pack) {
+    const key =
+      String(pack.material_id || '').trim().toUpperCase();
+
+    if (!packMap[key]) {
+      packMap[key] = pack;
+    }
+  });
+
   rows =
     rows.slice().sort(function(a, b) {
       return getFactoryMaterialSortOrder_(a.material_id) -
@@ -4489,11 +4513,17 @@ function renderFactoryStockBalance_() {
 
   let html = `
     <div class="card">
-      <h2>สต๊อกวัตถุดิบคงเหลือ</h2>
+      <h2>สต๊อกวัตถุดิบคงเหลือ / สั่งซื้อ</h2>
 
       <div class="small">
-        เรียงตามหมวด: ขวด → น้ำ → ไซรัป → ผง → สติ๊กเกอร์
+        กรอกจำนวนสั่งในช่องท้ายตาราง เฉพาะรายการที่ต้องการสั่ง
       </div>
+
+      <label>วันที่สั่ง</label>
+      <input type="date" id="factoryPoOrderDate">
+
+      <label>หมายเหตุรวม</label>
+      <textarea id="factoryPoNote" rows="2"></textarea>
   `;
 
   if (!rows.length) {
@@ -4510,14 +4540,53 @@ function renderFactoryStockBalance_() {
               <th>ขั้นต่ำ</th>
               <th>หน่วย</th>
               <th>สถานะ</th>
+              <th>ออเดอร์ค้างส่ง</th>
+              <th>หลังหัก</th>
+              <th>แพ็กสั่งซื้อ</th>
+              <th>จำนวนสั่ง</th>
             </tr>
           </thead>
           <tbody>
     `;
 
     rows.forEach(function(row) {
+      const key =
+        String(row.material_id || '').trim().toUpperCase();
+
       const cat =
         getFactoryMaterialCategoryStyle_(row.category);
+
+      const need =
+        needMap[key] || {};
+
+      const pack =
+        packMap[key] || {};
+
+      const currentQty =
+        Number(row.current_qty || 0);
+
+      const requiredQty =
+        Number(need.required_qty || 0);
+
+      const afterQty =
+        need.after_qty !== undefined
+          ? Number(need.after_qty || 0)
+          : currentQty - requiredQty;
+
+      const packName =
+        pack.pack_name || row.base_unit || 'หน่วย';
+
+      const packId =
+        pack.pack_id || row.material_id;
+
+      const baseQty =
+        Number(pack.base_qty || 1);
+
+      const baseUnit =
+        row.base_unit || pack.base_unit || '';
+
+      const supplier =
+        String(pack.note || 'อื่นๆ').trim() || 'อื่นๆ';
 
       const statusText =
         row.status === 'NEGATIVE'
@@ -4532,6 +4601,11 @@ function renderFactoryStockBalance_() {
           : row.status === 'LOW'
             ? 'color:#f59e0b;font-weight:bold;'
             : 'color:#16a34a;font-weight:bold;';
+
+      const afterStyle =
+        afterQty < 0
+          ? 'color:#dc2626;font-weight:bold;'
+          : 'font-weight:bold;';
 
       html += `
         <tr style="background:${cat.bg};">
@@ -4555,20 +4629,40 @@ function renderFactoryStockBalance_() {
             <div class="small">${row.material_id}</div>
           </td>
 
+          <td><b>${currentQty.toLocaleString()}</b></td>
+
+          <td>${Number(row.min_qty || 0).toLocaleString()}</td>
+
+          <td>${baseUnit}</td>
+
+          <td style="${statusStyle}">${statusText}</td>
+
+          <td>${requiredQty.toLocaleString()}</td>
+
+          <td style="${afterStyle}">${afterQty.toLocaleString()}</td>
+
           <td>
-            <b>${Number(row.current_qty || 0).toLocaleString()}</b>
+            ${packName}
+            <div class="small">
+              ${supplier} / 1 = ${baseQty.toLocaleString()} ${baseUnit}
+            </div>
           </td>
 
           <td>
-            ${Number(row.min_qty || 0).toLocaleString()}
-          </td>
-
-          <td>
-            ${row.base_unit || ''}
-          </td>
-
-          <td style="${statusStyle}">
-            ${statusText}
+            <input
+              type="number"
+              min="0"
+              inputmode="decimal"
+              class="factory-po-qty"
+              style="width:80px;"
+              placeholder="0"
+              data-supplier="${escapeHtml_(supplier)}"
+              data-material-id="${escapeHtml_(row.material_id)}"
+              data-material-name="${escapeHtml_(row.material_name)}"
+              data-pack-id="${escapeHtml_(packId)}"
+              data-pack-name="${escapeHtml_(packName)}"
+              data-base-qty="${baseQty}"
+              data-base-unit="${escapeHtml_(baseUnit)}">
           </td>
         </tr>
       `;
@@ -4578,12 +4672,26 @@ function renderFactoryStockBalance_() {
           </tbody>
         </table>
       </div>
+
+      <button onclick="submitFactoryPo_()" style="margin-top:12px;">
+        สร้างใบสั่งวัตถุดิบ
+      </button>
     `;
   }
 
   html += `</div>`;
 
   document.getElementById('factoryStockBox').innerHTML = html;
+
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+
+  document.getElementById('factoryPoOrderDate').value =
+    `${yyyy}-${mm}-${dd}`;
+
+  document.getElementById('factoryPoBox').innerHTML = '';
 }
 
 
