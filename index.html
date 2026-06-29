@@ -4586,7 +4586,7 @@ function renderFactoryStockBalance_() {
         row.base_unit || pack.base_unit || '';
 
       const supplier =
-        String(pack.note || 'อื่นๆ').trim() || 'อื่นๆ';
+        String(pack.supplier || pack.note || 'อื่นๆ').trim() || 'อื่นๆ';
 
       const statusText =
         row.status === 'NEGATIVE'
@@ -4776,7 +4776,7 @@ function renderFactoryPurchaseOrderForm_() {
       pack.pack_name || baseUnit || 'หน่วย';
 
     const supplier =
-      String(pack.note || 'อื่นๆ').trim() || 'อื่นๆ';
+      String(pack.supplier || pack.note || 'อื่นๆ').trim() || 'อื่นๆ';
 
     html += `
       <div
