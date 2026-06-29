@@ -4357,6 +4357,21 @@ function renderFactoryNeed_() {
     html += `</tbody></table></div>`;
   }
 
+  if (
+    need.product_rows &&
+    need.product_rows.length &&
+    need.material_rows &&
+    need.material_rows.length
+  ) {
+    html += `
+      <button
+        onclick="produceFactoryOrder_()"
+        style="margin-top:12px;background:#2563eb;">
+        กดผลิต / ตัดวัตถุดิบวันนี้
+      </button>
+    `;
+  }
+
   html += `</div>`;
 
   document.getElementById('factoryNeedBox').innerHTML = html;
@@ -5315,6 +5330,54 @@ async function submitFactoryReceivePO_(poIndex) {
     alert('รับเข้าไม่สำเร็จ: ' + (err.message || err));
   }
 }
+
+
+async function produceFactoryOrder_() {
+  const deliveryDate =
+    document.getElementById('factoryDeliveryDate').value;
+
+  if (!deliveryDate) {
+    alert('กรุณาเลือกวันที่ส่งหน้าร้าน');
+    return;
+  }
+
+  if (
+    !confirm(
+      'ยืนยันกดผลิตและตัดวัตถุดิบ?\n\nวันที่: ' +
+      deliveryDate +
+      '\n\nระบบจะตัดวัตถุดิบจาก Factory Stock Ledger'
+    )
+  ) {
+    return;
+  }
+
+  try {
+    const data =
+      await apiGet({
+        action: 'produceFactoryOrder',
+        payload: JSON.stringify({
+          lineUserId: lineUserId,
+          deliveryDate: deliveryDate
+        })
+      });
+
+    if (!data.ok) {
+      alert(data.message || 'ผลิตไม่สำเร็จ');
+      return;
+    }
+
+    alert(
+      'ผลิตเรียบร้อย\n\n' +
+      'เลขอ้างอิง: ' + data.ref_id + '\n' +
+      'จำนวนวัตถุดิบที่ตัด: ' + data.material_count
+    );
+
+    await loadFactoryStockData();
+
+  } catch (err) {
+    alert('ผลิตไม่สำเร็จ: ' + (err.message || err));
+  }
+}    
 
     
     main();
