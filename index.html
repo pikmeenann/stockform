@@ -4588,14 +4588,11 @@ function renderFactoryStockBalance_() {
 
 
 function renderFactoryPurchaseOrderForm_() {
-  const materials =
-    (factoryStockData && factoryStockData.materials) || [];
+  const stockRows =
+    (factoryStockData && factoryStockData.stock_balance) || [];
 
   const packs =
     (factoryStockData && factoryStockData.pack_sizes) || [];
-
-  const stockRows =
-    (factoryStockData && factoryStockData.stock_balance) || [];
 
   const needRows =
     (
@@ -4604,79 +4601,21 @@ function renderFactoryPurchaseOrderForm_() {
       factoryStockData.production_need.material_rows
     ) || [];
 
-  const materialMap = {};
-  materials.forEach(function(m) {
-    materialMap[String(m.material_id || '').trim().toUpperCase()] = m;
-  });
-
-  const stockMap = {};
-  stockRows.forEach(function(row) {
-    stockMap[String(row.material_id || '').trim().toUpperCase()] = row;
-  });
-
   const needMap = {};
   needRows.forEach(function(row) {
     needMap[String(row.material_id || '').trim().toUpperCase()] = row;
   });
 
-  let rows = packs.map(function(pack) {
-    const materialId =
-      String(pack.material_id || '').trim();
-
-    const key =
-      materialId.toUpperCase();
-
-    const material =
-      materialMap[key] || {};
-
-    const stock =
-      stockMap[key] || {};
-
-    const need =
-      needMap[key] || {};
-
-    const supplier =
-      String(pack.note || 'อื่นๆ').trim() || 'อื่นๆ';
-
-    return {
-      supplier: supplier,
-      material_id: materialId,
-      material_name: material.material_name || materialId,
-      base_unit: material.base_unit || pack.base_unit || '',
-      pack_id: pack.pack_id,
-      pack_name: pack.pack_name || pack.pack_id,
-      base_qty: Number(pack.base_qty || 0),
-      current_qty: Number(stock.current_qty || need.current_qty || 0),
-      required_qty: Number(need.required_qty || 0),
-      after_qty: Number(
-        need.after_qty !== undefined
-          ? need.after_qty
-          : Number(stock.current_qty || 0) - Number(need.required_qty || 0)
-      )
-    };
+  const packMap = {};
+  packs.forEach(function(pack) {
+    const key = String(pack.material_id || '').trim().toUpperCase();
+    if (!packMap[key]) packMap[key] = pack;
   });
 
-  rows = rows.filter(function(row) {
-    return row.material_id && row.pack_id;
-  });
-
-  rows.sort(function(a, b) {
-    const s =
-      String(a.supplier).localeCompare(String(b.supplier), 'th');
-
-    if (s !== 0) return s;
-
+  let rows = stockRows.slice().sort(function(a, b) {
     return getFactoryMaterialSortOrder_(a.material_id) -
       getFactoryMaterialSortOrder_(b.material_id);
   });
-
-  const suppliers = {};
-  rows.forEach(function(row) {
-    suppliers[row.supplier] = true;
-  });
-
-  const supplierList =
-    Object.keys(suppliers);
 
   let html = `
     <div class="card">
@@ -4689,123 +4628,132 @@ function renderFactoryPurchaseOrderForm_() {
       <textarea id="factoryPoNote" rows="2"></textarea>
 
       <div class="small" style="margin-top:10px;">
-        กรอกเฉพาะรายการที่ต้องการสั่ง ระบบจะสร้าง PO แยกตาม Supplier ให้อัตโนมัติ
+        กรอกเฉพาะรายการที่ต้องการสั่ง
       </div>
 
-      <div style="
-        display:flex;
-        gap:8px;
-        overflow-x:auto;
-        margin-top:12px;
-        padding-bottom:4px;
-      ">
-        <button type="button" onclick="filterFactoryPoSupplier_('ALL')">
-          ทั้งหมด
-        </button>
-
-        ${supplierList.map(function(supplier) {
-          return `
-            <button
-              type="button"
-              class="secondary"
-              onclick="filterFactoryPoSupplier_('${escapeHtml_(supplier)}')">
-              ${supplier}
-            </button>
-          `;
-        }).join('')}
-      </div>
-
-      <div class="table-wrap" style="margin-top:12px;">
-        <table>
-          <thead>
-            <tr>
-              <th>Supplier</th>
-              <th>วัตถุดิบ</th>
-              <th>แพ็ก</th>
-              <th>สต๊อก</th>
-              <th>ออเดอร์คงค้าง</th>
-              <th>หลังหัก</th>
-              <th>จำนวนสั่ง</th>
-              <th>หลังสั่งซื้อ</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div class="mobile-product-list" style="margin-top:12px;">
   `;
 
   rows.forEach(function(row, index) {
-    const afterStyle =
-      Number(row.after_qty || 0) < 0
-        ? 'color:#dc2626;font-weight:bold;'
-        : 'font-weight:bold;';
+    const key =
+      String(row.material_id || '').trim().toUpperCase();
+
+    const need =
+      needMap[key] || {};
+
+    const pack =
+      packMap[key] || {};
+
+    const cat =
+      getFactoryMaterialCategoryStyle_(row.category);
+
+    const currentQty =
+      Number(row.current_qty || 0);
+
+    const requiredQty =
+      Number(need.required_qty || 0);
+
+    const afterQty =
+      need.after_qty !== undefined
+        ? Number(need.after_qty || 0)
+        : currentQty - requiredQty;
+
+    const baseQty =
+      Number(pack.base_qty || 1);
+
+    const baseUnit =
+      row.base_unit || pack.base_unit || '';
+
+    const packName =
+      pack.pack_name || baseUnit || 'หน่วย';
+
+    const supplier =
+      String(pack.note || 'อื่นๆ').trim() || 'อื่นๆ';
 
     html += `
-      <tr
-        class="factory-po-row"
-        data-supplier="${escapeHtml_(row.supplier)}"
-        data-index="${index}">
-        <td>${row.supplier}</td>
+      <div
+        class="mobile-sale-card factory-po-card"
+        style="background:${cat.bg};border-color:${cat.border};"
+      >
+        <div class="mobile-sale-head">
+          <div>
+            <span style="
+              display:inline-block;
+              padding:4px 8px;
+              border-radius:999px;
+              background:#ffffff;
+              border:1px solid ${cat.border};
+              color:${cat.color};
+              font-size:12px;
+              font-weight:bold;
+              margin-bottom:6px;
+            ">
+              ${cat.label}
+            </span>
 
-        <td class="product">
-          ${row.material_name}
-          <div class="small">${row.material_id}</div>
-        </td>
+            <div class="mobile-product-name">
+              ${row.material_name || row.material_id}
+            </div>
 
-        <td>
-          ${row.pack_name}
-          <div class="small">
-            ${Number(row.base_qty || 0).toLocaleString()} ${row.base_unit}
+            <span class="mobile-product-code">
+              ${row.material_id} • ${supplier} • ${packName}
+            </span>
           </div>
-        </td>
+        </div>
 
-        <td>
-          ${Number(row.current_qty || 0).toLocaleString()}
-        </td>
+        <div style="
+          display:grid;
+          grid-template-columns:repeat(3, 1fr);
+          gap:8px;
+          margin-bottom:10px;
+          font-size:13px;
+        ">
+          <div>
+            <div class="small">สต๊อก</div>
+            <b>${currentQty.toLocaleString()}</b>
+          </div>
 
-        <td>
-          ${Number(row.required_qty || 0).toLocaleString()}
-        </td>
+          <div>
+            <div class="small">ค้างส่ง</div>
+            <b>${requiredQty.toLocaleString()}</b>
+          </div>
 
-        <td style="${afterStyle}">
-          ${Number(row.after_qty || 0).toLocaleString()}
-        </td>
+          <div>
+            <div class="small">หลังหัก</div>
+            <b style="${afterQty < 0 ? 'color:#dc2626;' : ''}">
+              ${afterQty.toLocaleString()}
+            </b>
+          </div>
+        </div>
 
-        <td>
+        <label style="margin-top:4px;">
+          จำนวนที่จะสั่ง (${packName})
           <input
             type="number"
             min="0"
             inputmode="decimal"
             class="factory-po-qty"
-            style="width:80px;"
             placeholder="0"
-            data-supplier="${escapeHtml_(row.supplier)}"
+            data-supplier="${escapeHtml_(supplier)}"
             data-material-id="${escapeHtml_(row.material_id)}"
-            data-material-name="${escapeHtml_(row.material_name)}"
-            data-pack-id="${escapeHtml_(row.pack_id)}"
-            data-pack-name="${escapeHtml_(row.pack_name)}"
-            data-base-qty="${Number(row.base_qty || 0)}"
-            data-base-unit="${escapeHtml_(row.base_unit)}"
-            data-after-qty="${Number(row.after_qty || 0)}"
-            oninput="updateFactoryPoAfterQty_(this)">
-        </td>
+            data-pack-id="${escapeHtml_(pack.pack_id || row.material_id)}"
+            data-pack-name="${escapeHtml_(packName)}"
+            data-base-qty="${baseQty}"
+            data-base-unit="${escapeHtml_(baseUnit)}"
+          >
+        </label>
 
-        <td>
-          <b id="factory_po_after_${index}">
-            ${Number(row.after_qty || 0).toLocaleString()}
-          </b>
-          <div class="small">${row.base_unit}</div>
-        </td>
-      </tr>
+        <div class="small">
+          1 ${packName} = ${baseQty.toLocaleString()} ${baseUnit}
+        </div>
+      </div>
     `;
   });
 
   html += `
-          </tbody>
-        </table>
       </div>
 
-      <button
-        onclick="submitFactoryPo_()"
-        style="margin-top:12px;">
+      <button onclick="submitFactoryPo_()" style="margin-top:12px;">
         สร้างใบสั่งวัตถุดิบ
       </button>
     </div>
@@ -5007,80 +4955,88 @@ function renderFactoryReceivePO_() {
   const openPOs =
     (factoryStockData && factoryStockData.open_pos) || [];
 
+  let receiveItems = [];
+
+  openPOs.forEach(function(po) {
+    (po.items || []).forEach(function(item) {
+      receiveItems.push({
+        po_id: po.po_id,
+        supplier_name: po.supplier_name || '-',
+        order_date: po.order_date,
+        item_id: item.item_id,
+        material_id: item.material_id,
+        material_name: item.material_name,
+        pack_name: item.pack_name,
+        ordered_pack_qty: Number(item.ordered_pack_qty || 0),
+        received_pack_qty: Number(item.received_pack_qty || 0),
+        remain_pack_qty: Number(item.remain_pack_qty || 0)
+      });
+    });
+  });
+
+  receiveItems = receiveItems.filter(function(item) {
+    return Number(item.remain_pack_qty || 0) > 0;
+  });
+
+  receiveItems.sort(function(a, b) {
+    return getFactoryMaterialSortOrder_(a.material_id) -
+      getFactoryMaterialSortOrder_(b.material_id);
+  });
+
   let html = `
     <div class="card">
-      <h2>รับเข้าวัตถุดิบ / PO ค้างรับ</h2>
+      <h2>รายการสั่งซื้อคงค้าง</h2>
   `;
 
-  if (!openPOs.length) {
-    html += `
-      <div class="status">
-        ไม่มี PO ค้างรับ
-      </div>
-    `;
+  if (!receiveItems.length) {
+    html += `<div class="status">ไม่มี PO ค้างรับ</div>`;
   } else {
-    html += `
-      <label>วันที่รับจริง</label>
-      <input type="date" id="factoryReceiveDate">
-    `;
-
-    openPOs.forEach(function(po, poIndex) {
+    receiveItems.forEach(function(item, index) {
       html += `
-        <div class="branch-card">
-          <b>${po.po_id}</b>
-          <div>Supplier: ${po.supplier_name || '-'}</div>
-          <div class="small">
-            วันที่สั่ง: ${formatFactoryDate_(po.order_date)}
-            |
-            วันที่สั่ง: ${formatFactoryDate_(po.order_date)}
+        <div class="mobile-sale-card" style="margin-bottom:10px;">
+          <div class="mobile-product-name">
+            ${item.material_name || item.material_id}
           </div>
-          <div class="small">สถานะ: ${po.status}</div>
 
-          <div class="table-wrap" style="margin-top:10px;">
-            <table>
-              <thead>
-                <tr>
-                  <th>วัตถุดิบ</th>
-                  <th>แพ็ก</th>
-                  <th>สั่ง</th>
-                  <th>รับแล้ว</th>
-                  <th>ค้างรับ</th>
-                  <th>รับครั้งนี้</th>
-                </tr>
-              </thead>
-              <tbody>
-      `;
+          <span class="mobile-product-code">
+            ${item.material_id || ''} • ${item.supplier_name}
+          </span>
 
-      (po.items || []).forEach(function(item, itemIndex) {
-        html += `
-          <tr>
-            <td class="product">${item.material_name}</td>
-            <td>${item.pack_name}</td>
-            <td>${Number(item.ordered_pack_qty || 0).toLocaleString()}</td>
-            <td>${Number(item.received_pack_qty || 0).toLocaleString()}</td>
-            <td><b>${Number(item.remain_pack_qty || 0).toLocaleString()}</b></td>
-            <td>
-              <input
-                type="number"
-                min="0"
-                max="${Number(item.remain_pack_qty || 0)}"
-                id="factory_receive_${poIndex}_${itemIndex}"
-                style="width:90px;"
-                placeholder="0">
-            </td>
-          </tr>
-        `;
-      });
+          <div class="small">
+            วันที่สั่ง: ${formatFactoryDate_(item.order_date)}
+          </div>
 
-      html += `
-              </tbody>
-            </table>
+          <div class="small">
+            PO: ${item.po_id}
+          </div>
+
+          <div style="
+            display:grid;
+            grid-template-columns:repeat(3, 1fr);
+            gap:8px;
+            margin-top:10px;
+            font-size:13px;
+          ">
+            <div>
+              <div class="small">สั่ง</div>
+              <b>${item.ordered_pack_qty.toLocaleString()}</b>
+            </div>
+
+            <div>
+              <div class="small">รับแล้ว</div>
+              <b>${item.received_pack_qty.toLocaleString()}</b>
+            </div>
+
+            <div>
+              <div class="small">ค้างรับ</div>
+              <b>${item.remain_pack_qty.toLocaleString()}</b>
+            </div>
           </div>
 
           <button
-            onclick="submitFactoryReceivePO_(${poIndex})"
+            onclick="receiveFactoryPoItem_('${item.po_id}', '${item.item_id}', ${item.remain_pack_qty})"
             style="margin-top:10px;">
-            รับเข้า PO นี้
+            รับเข้าสต๊อก
           </button>
         </div>
       `;
@@ -5090,19 +5046,75 @@ function renderFactoryReceivePO_() {
   html += `</div>`;
 
   document.getElementById('factoryReceiveBox').innerHTML = html;
+}
 
-  const receiveDateEl =
-    document.getElementById('factoryReceiveDate');
 
-  if (receiveDateEl) {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
+async function receiveFactoryPoItem_(poId, itemId, remainQty) {
+  const qtyText =
+    prompt(
+      'ระบุจำนวนรับเข้า',
+      String(remainQty || '')
+    );
 
-    receiveDateEl.value = `${yyyy}-${mm}-${dd}`;
+  if (qtyText === null) return;
+
+  const qty =
+    Number(qtyText || 0);
+
+  if (qty <= 0) {
+    alert('กรุณาระบุจำนวนมากกว่า 0');
+    return;
+  }
+
+  if (qty > Number(remainQty || 0)) {
+    alert('จำนวนรับเข้ามากกว่าจำนวนค้างรับ');
+    return;
+  }
+
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+
+  const receiveDate =
+    `${yyyy}-${mm}-${dd}`;
+
+  if (!confirm('ยืนยันรับเข้าสต๊อกจำนวน ' + qty + ' ?')) {
+    return;
+  }
+
+  try {
+    const data =
+      await apiGet({
+        action: 'receiveFactoryPO',
+        payload: JSON.stringify({
+          lineUserId: lineUserId,
+          po_id: poId,
+          receive_date: receiveDate,
+          items: [
+            {
+              item_id: itemId,
+              receive_pack_qty: qty
+            }
+          ]
+        })
+      });
+
+    if (!data.ok) {
+      alert(data.message || 'รับเข้าไม่สำเร็จ');
+      return;
+    }
+
+    alert('รับเข้าสต๊อกเรียบร้อย');
+
+    await loadFactoryStockData();
+
+  } catch (err) {
+    alert('รับเข้าไม่สำเร็จ: ' + (err.message || err));
   }
 }
+    
+    
 
 function formatFactoryDate_(value) {
   if (!value) return '-';
