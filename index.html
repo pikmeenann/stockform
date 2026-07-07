@@ -2760,7 +2760,7 @@ async function renderRestockAdminPage() {
 
 
 async function reloadRestockAdminPage() {
-  await reloadRestockAdminPage();
+  await loadRestockAdminGroups();
 }
 
 async function loadRestockAdminDashboard() {
@@ -3766,9 +3766,8 @@ async function cancelRestockAdminGroup(groupIndex) {
     document.getElementById('admin_cancel_btn_' + groupIndex);
 
   const cancelledBy =
-    document.getElementById('confirmedBy').value.trim() ||
-    (appData.user && appData.user.name) ||
-    'admin';
+      (appData.user && appData.user.name) ||
+      'admin';
 
   if (!group || !group.request_id) {
     alert('ไม่พบเลขที่ใบสั่ง');
@@ -3816,7 +3815,7 @@ async function cancelRestockAdminGroup(groupIndex) {
       'จำนวนรายการ: ' + data.cancel_count
     );
 
-    await reloadRestockAdminPage();
+    await loadRestockAdminGroups();
 
   } catch (err) {
     alert('ยกเลิกไม่สำเร็จ: ' + (err.message || err));
