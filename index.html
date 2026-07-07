@@ -3140,161 +3140,150 @@ function isFactoryRole_() {
 }
 
 function renderRestockAdminGroups() {
-  const box =
-    document.getElementById('restockAdminList');
+  const box = document.getElementById('restockAdminList');
 
   if (!pendingRestockGroups.length) {
-    box.innerHTML =
-      'ไม่มีรายการรออนุมัติ / รอรับสินค้า';
+    box.innerHTML = 'ไม่มีรายการรออนุมัติ / รอรับสินค้า';
     return;
   }
 
   let html = '';
 
   pendingRestockGroups.forEach(function(group, groupIndex) {
-    const groupStatus =
-      String(group.status || 'PENDING').toUpperCase();
-
-    const statusText =
-      groupStatus === 'APPROVED'
-        ? 'อนุมัติแล้ว / รอรับสินค้า'
-        : 'รออนุมัติ';
-
-    const statusColor =
-      groupStatus === 'APPROVED'
-        ? '#16a34a'
-        : '#f59e0b';
-
-    const totalRequestedQty =
-      (group.items || []).reduce(function(sum, item) {
-        return sum + Number(item.requested_qty || 0);
-      }, 0);
-
-    const totalConfirmedQty =
-      (group.items || []).reduce(function(sum, item) {
-        return sum + Number(item.confirmed_qty || item.requested_qty || 0);
-      }, 0);
+    const totalRequestedQty = (group.items || []).reduce(function(sum, item) {
+      return sum + Number(item.requested_qty || 0);
+    }, 0);
 
     html += `
       <div class="branch-card">
-        <b>สาขา ${group.branch_id || '-'}</b>
+        <b style="font-size:18px;">สาขา ${group.branch_id || '-'}</b>
         <div class="small">เลขที่ ${group.request_id || '-'}</div>
-
-        <div style="
-          display:inline-block;
-          margin-top:8px;
-          padding:4px 8px;
-          border-radius:999px;
-          background:${statusColor};
-          color:white;
-          font-size:12px;
-          font-weight:bold;
-        ">
-          ${statusText}
-        </div>
-
-        <div class="status" style="margin-top:10px;">
-          <b>สรุปใบสั่ง</b><br>
-          จำนวนรายการ: ${(group.items || []).length} รายการ<br>
-          ยอดขอเติมรวม: ${totalRequestedQty.toLocaleString()} ชิ้น<br>
-          ยอดยืนยันรวม: ${totalConfirmedQty.toLocaleString()} ชิ้น
-        </div>
-
         <div class="small">ผู้สั่ง: ${group.staff_name || '-'}</div>
-        <div class="small">วันที่สั่ง: ${group.order_date || '-'}</div>
         <div class="small">วันที่ต้องการรับ: ${group.requested_delivery_date || '-'}</div>
 
-        <label>วันส่งจริง</label>
-        <input
-          id="admin_delivery_date_${groupIndex}"
-          type="date"
-          value="${group.delivery_date || group.requested_delivery_date || ''}"
-          ${['RECEIVED', 'RECEIVED_MANUAL', 'RECEIVED_AUTO', 'CANCELLED'].includes(groupStatus) ? 'disabled' : ''}>
-
-        <div class="table-wrap" style="margin-top:12px;">
-          <table>
-            <thead>
-              <tr>
-                <th>สินค้า</th>
-                <th>คงเหลือ</th>
-                <th>Min</th>
-                <th>ขอเติม</th>
-                <th>ยืนยัน</th>
-              </tr>
-            </thead>
-            <tbody>
-    `;
-
-    (group.items || []).forEach(function(item, itemIndex) {
-      html += `
-        <tr>
-          <td class="product">
-            ${item.product_name || item.product_code || '-'}
-            <div class="small">${item.product_code || '-'}</div>
-          </td>
-          <td>${item.current_stock || '-'}</td>
-          <td>${item.min_qty || '-'}</td>
-          <td>${item.requested_qty || 0}</td>
-          <td>
-            <input
-              id="admin_confirmed_qty_${groupIndex}_${itemIndex}"
-              type="number"
-              min="0"
-              inputmode="numeric"
-              value="${item.confirmed_qty || ''}"
-              style="width:70px;"
-              ${['RECEIVED', 'RECEIVED_MANUAL', 'RECEIVED_AUTO', 'CANCELLED'].includes(groupStatus) ? 'disabled' : ''}>
-          </td>
-        </tr>
-      `;
-    });
-
-    html += `
-            </tbody>
-          </table>
+        <div class="status" style="margin-top:10px;">
+          จำนวนสินค้า: ${(group.items || []).length} รายการ<br>
+          รวมขอเติม: <b>${totalRequestedQty.toLocaleString()} ชิ้น</b>
         </div>
-    `;
 
-if (
-  groupStatus === 'PENDING' &&
-  ['owner', 'manager', 'factory'].includes(appData.user.role)
-) {
-  html += `
-    <button
-      id="admin_btn_${groupIndex}"
-      onclick="confirmRestockAdminGroup(${groupIndex})"
-      style="background:#16a34a;">
-      ยืนยันส่งจริงและเติมเข้าสต๊อก
-    </button>
-  `;
-}
+        <button onclick="toggleRestockItems(${groupIndex})">
+          ดู / ซ่อน รายการสินค้า
+        </button>
 
-if (
-  ['owner', 'manager'].includes(appData.user.role) &&
-  groupStatus !== 'RECEIVED' &&
-  groupStatus !== 'CANCELLED'
-) {
-  html += `
-    <button
-      id="admin_cancel_btn_${groupIndex}"
-      onclick="cancelRestockAdminGroup(${groupIndex})"
-      style="
-        background:#dc2626;
-        color:white;
-        margin-top:8px;
-      ">
-      ยกเลิกใบสั่ง
-    </button>
-  `;
-}
+        <div id="restock_items_${groupIndex}" style="display:none;margin-top:10px;">
+          ${renderRestockItemsMobile(group, groupIndex)}
+        </div>
 
-    html += `
+        <button onclick="approveRestockAsRequested(${groupIndex})" style="background:#16a34a;">
+          อนุมัติตามที่ขอ
+        </button>
+
+        <button onclick="enableEditRestockQty(${groupIndex})" style="background:#2563eb;">
+          แก้จำนวนก่อนอนุมัติ
+        </button>
+
+        <button onclick="cancelRestockAdminGroup(${groupIndex})" class="danger">
+          ยกเลิกใบสั่ง
+        </button>
       </div>
     `;
   });
 
   box.className = '';
   box.innerHTML = html;
+}
+
+function renderRestockItemsMobile(group, groupIndex) {
+  let html = '';
+
+  (group.items || []).forEach(function(item, itemIndex) {
+    html += `
+      <div class="mobile-sale-card" style="margin-bottom:8px;">
+        <b>${item.product_name || item.product_code || '-'}</b>
+        <div class="small">${item.product_code || '-'}</div>
+
+        <div style="margin-top:8px;">
+          ขอเติม: <b>${item.requested_qty || 0}</b>
+        </div>
+
+        <label style="display:none;" class="edit-qty-label-${groupIndex}">
+          จำนวนส่งจริง
+          <input
+            id="admin_confirmed_qty_${groupIndex}_${itemIndex}"
+            type="number"
+            min="0"
+            value="${item.confirmed_qty || item.requested_qty || 0}">
+        </label>
+      </div>
+    `;
+  });
+
+  return html;
+}
+
+function toggleRestockItems(groupIndex) {
+  const el = document.getElementById('restock_items_' + groupIndex);
+  el.style.display = el.style.display === 'none' ? 'block' : 'none';
+}
+
+async function approveRestockAsRequested(groupIndex) {
+  const group = pendingRestockGroups[groupIndex];
+
+  if (!group || !group.request_id) {
+    alert('ไม่พบเลขที่ใบสั่ง');
+    return;
+  }
+
+  if (!confirm('อนุมัติตามจำนวนที่ขอ?\n\nเลขที่ ' + group.request_id)) {
+    return;
+  }
+
+  const today = new Date();
+  const yyyy = today.getFullYear();
+  const mm = String(today.getMonth() + 1).padStart(2, '0');
+  const dd = String(today.getDate()).padStart(2, '0');
+
+  const items = (group.items || []).map(function(item) {
+    return {
+      row_number: item.row_number,
+      product_code: item.product_code,
+      product_name: item.product_name,
+      confirmed_qty: Number(item.requested_qty || 0),
+      remark: item.remark || ''
+    };
+  });
+
+  const data = await apiGet({
+    action: 'confirmRestockGroup',
+    payload: JSON.stringify({
+      request_id: group.request_id,
+      delivery_date: group.requested_delivery_date || `${yyyy}-${mm}-${dd}`,
+      confirmed_by: appData.user.name || 'หัวหน้า',
+      confirmed_by_uid: lineUserId,
+      lineUserId: lineUserId,
+      items: items
+    })
+  });
+
+  if (!data.ok) {
+    alert(data.message || 'อนุมัติไม่สำเร็จ');
+    return;
+  }
+
+  alert('อนุมัติเรียบร้อย');
+  await loadRestockAdminGroups();
+}
+
+function enableEditRestockQty(groupIndex) {
+  document.querySelectorAll('.edit-qty-label-' + groupIndex)
+    .forEach(function(el) {
+      el.style.display = 'block';
+    });
+
+  const itemsBox = document.getElementById('restock_items_' + groupIndex);
+  if (itemsBox) {
+    itemsBox.style.display = 'block';
+  }
 }
 
 async function confirmRestockAdminGroup(groupIndex) {
