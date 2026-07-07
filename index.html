@@ -1186,7 +1186,8 @@ function renderHelpPage() {
 
 }
 async function renderDashboardPage() {
-  if (!['manager', 'owner'].includes(appData.user.role)) {
+  const role = String(appData.user.role || '').toLowerCase();
+  if (!['manager', 'owner'].includes(role)) {
     document.body.innerHTML = `
       <div class="card">
         <h1>ไม่มีสิทธิ์</h1>
@@ -1530,7 +1531,8 @@ function renderQtyRankingBlock(title, rows) {
 }
 
 async function renderUsersPage() {
-  if (!['manager', 'owner'].includes(appData.user.role)) {
+  const role = String(appData.user.role || '').toLowerCase();
+  if (!['manager', 'owner'].includes(role)) {
     document.body.innerHTML = `
       <div class="card">
         <h1>ไม่มีสิทธิ์</h1>
@@ -1769,7 +1771,8 @@ async function quickSetUser(targetLineUserId, status) {
 }
 async function renderExportPage() {
 
-  if (!['manager', 'owner'].includes(appData.user.role)) {
+  const role = String(appData.user.role || '').toLowerCase();
+  if (!['manager', 'owner'].includes(role)) {
     document.body.innerHTML = `
       <div class="card">
         <h1>ไม่มีสิทธิ์</h1>
@@ -3181,10 +3184,16 @@ function renderRestockAdminGroups() {
         <button onclick="enableEditRestockQty(${groupIndex})" style="background:#2563eb;">
           แก้จำนวนก่อนอนุมัติ
         </button>
-
-        <button onclick="cancelRestockAdminGroup(${groupIndex})" class="danger">
-          ยกเลิกใบสั่ง
+        <button id="edit_confirm_btn_${groupIndex}" onclick="confirmEditedRestockGroup(${groupIndex})" style="display:none;background:#16a34a;">
+          ยืนยันจำนวนที่แก้แล้ว
         </button>
+
+        <button
+        id="admin_cancel_btn_${groupIndex}"
+        onclick="cancelRestockAdminGroup(${groupIndex})"
+        class="danger">
+        ยกเลิกใบสั่ง
+      </button>
       </div>
     `;
   });
@@ -3284,107 +3293,89 @@ function enableEditRestockQty(groupIndex) {
   if (itemsBox) {
     itemsBox.style.display = 'block';
   }
+
+  let btn = document.getElementById('edit_confirm_btn_' + groupIndex);
+
+if (btn) {
+  btn.style.display = 'block';
+}
 }
 
-async function confirmRestockAdminGroup(groupIndex) {
-  const group =
-    pendingRestockGroups[groupIndex];
-
-  const btn =
-    document.getElementById('admin_btn_' + groupIndex);
-
-  const deliveryDate =
-    document.getElementById('admin_delivery_date_' + groupIndex).value;
+async function confirmEditedRestockGroup(groupIndex) {
+  const group = pendingRestockGroups[groupIndex];
+  const btn = document.getElementById('edit_confirm_btn_' + groupIndex);
 
   if (!group || !group.request_id) {
     alert('ไม่พบเลขที่ใบสั่ง');
     return;
   }
 
-  if (!deliveryDate) {
-    alert('กรุณาระบุวันส่งจริง');
-    return;
-  }
+  const items = (group.items || []).map(function(item, itemIndex) {
+    const el = document.getElementById(
+      'admin_confirmed_qty_' + groupIndex + '_' + itemIndex
+    );
 
-  const items =
-    (group.items || []).map(function(item, itemIndex) {
-      const el =
-        document.getElementById(
-          'admin_confirmed_qty_' + groupIndex + '_' + itemIndex
-        );
-
-      const confirmedQty =
-        el && el.value !== ''
-          ? Number(el.value || 0)
-          : Number(item.requested_qty || 0);
-
-      return {
-        row_number: item.row_number,
-        product_code: item.product_code,
-        product_name: item.product_name,
-        confirmed_qty: confirmedQty,
-        remark: item.remark || ''
-      };
-    });
+    return {
+      row_number: item.row_number,
+      product_code: item.product_code,
+      product_name: item.product_name,
+      confirmed_qty: Number(el && el.value !== '' ? el.value : item.requested_qty || 0),
+      remark: item.remark || ''
+    };
+  });
 
   if (!items.some(item => Number(item.confirmed_qty || 0) > 0)) {
     alert('กรุณาระบุจำนวนส่งจริงอย่างน้อย 1 รายการ');
     return;
   }
 
-  if (
-    !confirm(
-      'ยืนยันส่งจริงและเติมเข้าสต๊อกทันที?\n\nเลขที่ ' +
-      group.request_id
-    )
-  ) {
+  if (!confirm('ยืนยันจำนวนที่แก้แล้ว?\n\nเลขที่ ' + group.request_id)) {
     return;
   }
 
-  btn.disabled = true;
-  btn.textContent = 'กำลังยืนยัน...';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'กำลังยืนยัน...';
+  }
 
   try {
-    const data =
-      await apiGet({
-        action: 'confirmRestockGroup',
-        payload: JSON.stringify({
-          request_id: group.request_id,
-          delivery_date: deliveryDate,
-          confirmed_by: appData.user.name || 'โรงงาน',
-          confirmed_by_uid: lineUserId,
-          lineUserId: lineUserId,
-          items: items
-        })
-      });
+    const data = await apiGet({
+      action: 'confirmRestockGroup',
+      payload: JSON.stringify({
+        request_id: group.request_id,
+        delivery_date: group.requested_delivery_date,
+        confirmed_by: appData.user.name || 'หัวหน้า',
+        confirmed_by_uid: lineUserId,
+        lineUserId: lineUserId,
+        items: items
+      })
+    });
 
     if (!data.ok) {
       alert(data.message || 'ยืนยันไม่สำเร็จ');
-      btn.disabled = false;
-      btn.textContent = 'ยืนยันส่งจริงและเติมเข้าสต๊อก';
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'ยืนยันจำนวนที่แก้แล้ว';
+      }
       return;
     }
 
-    alert(
-      'ยืนยันและเติมเข้าสต๊อกเรียบร้อย\n\n' +
-      'เลขที่: ' + data.request_id + '\n' +
-      'จำนวนรายการ: ' + (data.received_count || 0) + '\n' +
-      'จำนวนรวม: ' + (data.received_qty || 0)
-    );
-
+    alert('ยืนยันเรียบร้อย');
     await loadRestockAdminGroups();
 
   } catch (err) {
     alert('ยืนยันไม่สำเร็จ: ' + (err.message || err));
-    btn.disabled = false;
-    btn.textContent = 'ยืนยันส่งจริงและเติมเข้าสต๊อก';
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'ยืนยันจำนวนที่แก้แล้ว';
+    }
   }
 }
 
 
-
 async function renderVoidLogsPage() {
-  if (!['manager', 'owner'].includes(appData.user.role)) {
+  const role = String(appData.user.role || '').toLowerCase();
+  if (!['manager', 'owner'].includes(role)) {
     document.body.innerHTML = `
       <div class="card">
         <h1>ไม่มีสิทธิ์</h1>
@@ -3748,26 +3739,23 @@ async function voidSelectedLogs() {
 }
 
 async function cancelRestockAdminGroup(groupIndex) {
-  const group =
-    pendingRestockGroups[groupIndex];
+  const group = pendingRestockGroups[groupIndex];
 
-  const btn =
-    document.getElementById('admin_cancel_btn_' + groupIndex);
+  const btn = document.getElementById('admin_cancel_btn_' + groupIndex);
 
   const cancelledBy =
-      (appData.user && appData.user.name) ||
-      'admin';
+    (appData.user && appData.user.name) ||
+    'admin';
 
   if (!group || !group.request_id) {
     alert('ไม่พบเลขที่ใบสั่ง');
     return;
   }
 
-  const reason =
-    prompt(
-      'ระบุเหตุผลการยกเลิกใบสั่ง\n\nเลขที่ ' + group.request_id,
-      'พนักงานสั่งผิด'
-    );
+  const reason = prompt(
+    'ระบุเหตุผลการยกเลิกใบสั่ง\n\nเลขที่ ' + group.request_id,
+    'พนักงานสั่งผิด'
+  );
 
   if (reason === null) {
     return;
@@ -3777,24 +3765,31 @@ async function cancelRestockAdminGroup(groupIndex) {
     return;
   }
 
-  btn.disabled = true;
-  btn.textContent = 'กำลังยกเลิก...';
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'กำลังยกเลิก...';
+  }
 
   try {
-    const data =
-      await apiGet({
-        action: 'cancelRestockGroup',
-        payload: JSON.stringify({
-          request_id: group.request_id,
-          cancelled_by: cancelledBy,
-          reason: reason
-        })
-      });
+    const data = await apiGet({
+      action: 'cancelRestockGroup',
+      payload: JSON.stringify({
+        request_id: group.request_id,
+        cancelled_by: cancelledBy,
+        cancelled_by_uid: lineUserId,
+        lineUserId: lineUserId,
+        reason: reason
+      })
+    });
 
     if (!data.ok) {
       alert(data.message || 'ยกเลิกไม่สำเร็จ');
-      btn.disabled = false;
-      btn.textContent = 'ยกเลิกใบสั่ง';
+
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'ยกเลิกใบสั่ง';
+      }
+
       return;
     }
 
@@ -3808,8 +3803,11 @@ async function cancelRestockAdminGroup(groupIndex) {
 
   } catch (err) {
     alert('ยกเลิกไม่สำเร็จ: ' + (err.message || err));
-    btn.disabled = false;
-    btn.textContent = 'ยกเลิกใบสั่ง';
+
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'ยกเลิกใบสั่ง';
+    }
   }
 }
 
