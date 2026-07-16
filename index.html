@@ -1072,75 +1072,859 @@ function renderStockViewOnly() {
 }
 
 async function renderSalesPage() {
-  hideAllCards();
+  const role =
+    String(appData.user.role || '')
+      .trim()
+      .toLowerCase();
+
+  if (!['manager', 'owner'].includes(role)) {
+    document.body.innerHTML = `
+      <div class="card">
+        <h1>ไม่มีสิทธิ์</h1>
+
+        <div class="status">
+          หน้านี้สำหรับหัวหน้าและเจ้าของเท่านั้น
+        </div>
+      </div>
+    `;
+
+    return;
+  }
 
   document.body.innerHTML = `
     <div class="card">
-      <h1>ยอดขายวันนี้</h1>
+      <h1>วิเคราะห์ยอดขาย</h1>
+
+      <div class="small">
+        ดูยอดขาย แถม ของเสีย และชิม แยกตามสาขาและสินค้า
+      </div>
+
+      <div
+        style="
+          display:grid;
+          grid-template-columns:repeat(3,1fr);
+          gap:8px;
+          margin-top:14px;
+        "
+      >
+        <button
+          type="button"
+          onclick="setSalesAnalysisRange('TODAY')"
+        >
+          วันนี้
+        </button>
+
+        <button
+          type="button"
+          class="secondary"
+          onclick="setSalesAnalysisRange('YESTERDAY')"
+        >
+          เมื่อวาน
+        </button>
+
+        <button
+          type="button"
+          class="secondary"
+          onclick="setSalesAnalysisRange('MONTH')"
+        >
+          เดือนนี้
+        </button>
+      </div>
+
+      <label>วันที่เริ่มต้น</label>
+      <input
+        id="salesAnalysisStartDate"
+        type="date"
+      >
+
+      <label>วันที่สิ้นสุด</label>
+      <input
+        id="salesAnalysisEndDate"
+        type="date"
+      >
 
       <label>สาขา</label>
-      <select id="salesBranch"></select>
+      <select id="salesAnalysisBranch">
+        <option value="ALL">ทุกสาขา</option>
+      </select>
 
-      <button onclick="loadTodaySales()">ดูยอดขาย</button>
+      <button
+        id="salesAnalysisLoadBtn"
+        type="button"
+        onclick="loadSalesAnalysis()"
+      >
+        ดูรายงาน
+      </button>
+    </div>
 
-      <div id="salesResult" class="status" style="margin-top:12px;">
-        กรุณาเลือกสาขาแล้วกดดูยอดขาย
+    <div
+      id="salesAnalysisResult"
+      class="status"
+    >
+      กำลังโหลดข้อมูล...
+    </div>
+  `;
+
+  const branchSelect =
+    document.getElementById('salesAnalysisBranch');
+
+  (appData.branches || [])
+    .forEach(function(branch) {
+      const option =
+        document.createElement('option');
+
+      option.value =
+        branch.branch_id;
+
+      option.textContent =
+        branch.branch_name;
+
+      branchSelect.appendChild(option);
+    });
+
+  setSalesAnalysisRange('TODAY');
+}
+
+function getLocalDateKey_(dateObj) {
+  const date =
+    dateObj instanceof Date
+      ? dateObj
+      : new Date(dateObj);
+
+  const year =
+    date.getFullYear();
+
+  const month =
+    String(date.getMonth() + 1)
+      .padStart(2, '0');
+
+  const day =
+    String(date.getDate())
+      .padStart(2, '0');
+
+  return `${year}-${month}-${day}`;
+}
+
+function setSalesAnalysisRange(rangeType) {
+  const startInput =
+    document.getElementById(
+      'salesAnalysisStartDate'
+    );
+
+  const endInput =
+    document.getElementById(
+      'salesAnalysisEndDate'
+    );
+
+  if (!startInput || !endInput) {
+    return;
+  }
+
+  const today =
+    new Date();
+
+  let startDate =
+    new Date(today);
+
+  let endDate =
+    new Date(today);
+
+  const type =
+    String(rangeType || '')
+      .trim()
+      .toUpperCase();
+
+  if (type === 'YESTERDAY') {
+    startDate.setDate(
+      startDate.getDate() - 1
+    );
+
+    endDate =
+      new Date(startDate);
+  }
+
+  if (type === 'MONTH') {
+    startDate =
+      new Date(
+        today.getFullYear(),
+        today.getMonth(),
+        1
+      );
+  }
+
+  startInput.value =
+    getLocalDateKey_(startDate);
+
+  endInput.value =
+    getLocalDateKey_(endDate);
+
+  loadSalesAnalysis();
+}
+
+async function loadSalesAnalysis() {
+  const resultBox =
+    document.getElementById(
+      'salesAnalysisResult'
+    );
+
+  const button =
+    document.getElementById(
+      'salesAnalysisLoadBtn'
+    );
+
+  const startDate =
+    document.getElementById(
+      'salesAnalysisStartDate'
+    ).value;
+
+  const endDate =
+    document.getElementById(
+      'salesAnalysisEndDate'
+    ).value;
+
+  const branchId =
+    document.getElementById(
+      'salesAnalysisBranch'
+    ).value;
+
+  if (!startDate || !endDate) {
+    alert('กรุณาเลือกวันที่');
+    return;
+  }
+
+  if (startDate > endDate) {
+    alert('วันที่เริ่มต้นต้องไม่เกินวันที่สิ้นสุด');
+    return;
+  }
+
+  resultBox.className = 'status';
+  resultBox.textContent =
+    'กำลังโหลดรายละเอียด...';
+
+  if (button) {
+    button.disabled = true;
+    button.textContent = 'กำลังโหลด...';
+  }
+
+  try {
+    const data =
+      await apiGet({
+        action: 'salesAnalysis',
+        lineUserId: lineUserId,
+        startDate: startDate,
+        endDate: endDate,
+        branchId: branchId
+      });
+
+    if (!data.ok) {
+      resultBox.className = 'status';
+      resultBox.textContent =
+        data.message ||
+        'ไม่สามารถโหลดข้อมูลได้';
+
+      return;
+    }
+
+    renderSalesAnalysisResult(data);
+
+  } catch (err) {
+    resultBox.className = 'status';
+    resultBox.textContent =
+      'เกิดข้อผิดพลาด: ' +
+      (err.message || JSON.stringify(err));
+
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.textContent = 'ดูรายงาน';
+    }
+  }
+}
+
+function renderSalesAnalysisResult(data) {
+  const resultBox =
+    document.getElementById(
+      'salesAnalysisResult'
+    );
+
+  const branchRows =
+    data.branch_rows || [];
+
+  const topProducts =
+    data.top_products || [];
+
+  let html = `
+    <div class="card">
+      <div class="small">
+        ช่วงวันที่
+        ${formatAnalysisDate_(data.start_date)}
+        ถึง
+        ${formatAnalysisDate_(data.end_date)}
+      </div>
+
+      <div
+        style="
+          margin-top:10px;
+          padding:16px;
+          border-radius:16px;
+          background:#f0fdf4;
+          border:1px solid #bbf7d0;
+        "
+      >
+        <div
+          style="
+            font-size:15px;
+            color:#166534;
+          "
+        >
+          ยอดขายรวม
+        </div>
+
+        <div
+          style="
+            margin-top:4px;
+            font-size:34px;
+            font-weight:bold;
+            color:#166534;
+          "
+        >
+          ${money(data.total_amount)} บาท
+        </div>
+      </div>
+
+      <div
+        style="
+          display:grid;
+          grid-template-columns:repeat(2,1fr);
+          gap:10px;
+          margin-top:12px;
+        "
+      >
+        ${renderAnalysisMetric_(
+          'จำนวนขาย',
+          data.total_sold_qty,
+          'ชิ้น',
+          ''
+        )}
+
+        ${renderAnalysisMetric_(
+          'จำนวนแถม',
+          data.total_free_qty,
+          'ชิ้น',
+          `${Number(data.free_percent || 0)}% ของจำนวนขาย`
+        )}
+
+        ${renderAnalysisMetric_(
+          'ของเสีย',
+          data.total_damaged_qty,
+          'ชิ้น',
+          `${Number(data.damage_percent || 0)}% ของจำนวนขาย`,
+          Number(data.total_damaged_qty || 0) > 0
+        )}
+
+        ${renderAnalysisMetric_(
+          'ชิม',
+          data.total_tasting_qty,
+          'ชิ้น',
+          ''
+        )}
       </div>
     </div>
   `;
 
-  const select = document.getElementById('salesBranch');
-  select.innerHTML = '';
+  html += `
+    <div class="card">
+      <h2>สินค้าขายดีที่สุด</h2>
+      ${renderSalesTopProducts_(topProducts)}
+    </div>
+  `;
 
-  appData.branches.forEach(b => {
-    const option = document.createElement('option');
-    option.value = b.branch_id;
-    option.textContent = b.branch_name;
-    select.appendChild(option);
-  });
+  html += `
+    <div class="card">
+      <h2>รายละเอียดแต่ละสาขา</h2>
+  `;
 
-  await loadTodaySales();
+  if (!branchRows.length) {
+    html += `
+      <div class="status">
+        ไม่มีข้อมูลในช่วงวันที่เลือก
+      </div>
+    `;
+  } else {
+    branchRows.forEach(function(branch, index) {
+      html +=
+        renderSalesBranchCard_(
+          branch,
+          index
+        );
+    });
+  }
+
+  html += `</div>`;
+
+  resultBox.className = '';
+  resultBox.innerHTML = html;
 }
 
-async function loadTodaySales() {
-  const branchId = document.getElementById('salesBranch').value;
-  const resultBox = document.getElementById('salesResult');
+function renderAnalysisMetric_(
+  title,
+  value,
+  unit,
+  detail,
+  danger
+) {
+  const background =
+    danger
+      ? '#fef2f2'
+      : '#ffffff';
 
-  resultBox.textContent = 'กำลังโหลดยอดขาย...';
+  const border =
+    danger
+      ? '#fecaca'
+      : '#e5e7eb';
 
-  try {
-    const data = await apiGet({
-      action: 'todaySales',
-      lineUserId: lineUserId,
-      branchId: branchId
-    });
+  const valueColor =
+    danger
+      ? '#b91c1c'
+      : '#111827';
 
-    if (!data.ok) {
-      resultBox.textContent = data.message || 'ไม่สามารถโหลดข้อมูลได้';
-      return;
-    }
+  return `
+    <div
+      style="
+        background:${background};
+        border:1px solid ${border};
+        border-radius:14px;
+        padding:14px;
+      "
+    >
+      <div
+        style="
+          font-size:14px;
+          color:#6b7280;
+        "
+      >
+        ${title}
+      </div>
 
-    let text = '';
-    text += 'วันที่: ' + data.date + '\n\n';
+      <div
+        style="
+          margin-top:5px;
+          font-size:26px;
+          font-weight:bold;
+          color:${valueColor};
+        "
+      >
+        ${Number(value || 0).toLocaleString()}
+        <span style="font-size:14px;">
+          ${unit || ''}
+        </span>
+      </div>
 
-    data.rows.forEach(row => {
-      text += row.branch_name + ': ';
-      text += Number(row.amount || 0).toLocaleString();
-      text += ' บาท\n';
-    });
+      ${
+        detail
+          ? `
+            <div class="small">
+              ${detail}
+            </div>
+          `
+          : ''
+      }
+    </div>
+  `;
+}
 
-    text += '\nรวมทั้งหมด: ';
-    text += Number(data.totalAmount || 0).toLocaleString();
-    text += ' บาท';
-
-    resultBox.textContent = text;
-
-  } catch (err) {
-    resultBox.textContent =
-      'เกิดข้อผิดพลาด: ' +
-      (err.message || JSON.stringify(err));
+function renderSalesTopProducts_(rows) {
+  if (!rows || !rows.length) {
+    return `
+      <div class="status">
+        ไม่มีข้อมูลขาย
+      </div>
+    `;
   }
-}    
+
+  let html = '';
+
+  rows.forEach(function(row, index) {
+    html += `
+      <div
+        style="
+          display:grid;
+          grid-template-columns:36px 1fr auto;
+          gap:10px;
+          align-items:center;
+          padding:12px 0;
+          border-bottom:1px solid #e5e7eb;
+        "
+      >
+        <div
+          style="
+            width:32px;
+            height:32px;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            background:#f3f4f6;
+            border-radius:50%;
+            font-weight:bold;
+          "
+        >
+          ${index + 1}
+        </div>
+
+        <div>
+          <div style="font-weight:bold;">
+            ${row.product_name || row.product_id}
+          </div>
+
+          <div class="small">
+            ยอดขาย ${money(row.amount)} บาท
+          </div>
+        </div>
+
+        <div
+          style="
+            font-size:20px;
+            font-weight:bold;
+          "
+        >
+          ${Number(row.sold_qty || 0).toLocaleString()}
+        </div>
+      </div>
+    `;
+  });
+
+  return html;
+}
+
+function renderSalesBranchCard_(
+  branch,
+  index
+) {
+  const panelId =
+    'salesBranchDetail_' + index;
+
+  const damageQty =
+    Number(branch.damaged_qty || 0);
+
+  return `
+    <div
+      style="
+        border:1px solid #d1d5db;
+        border-radius:16px;
+        margin-bottom:14px;
+        overflow:hidden;
+        background:#ffffff;
+      "
+    >
+      <div
+        style="
+          padding:16px;
+        "
+      >
+        <div
+          style="
+            display:flex;
+            justify-content:space-between;
+            gap:10px;
+            align-items:flex-start;
+          "
+        >
+          <div>
+            <div
+              style="
+                font-size:21px;
+                font-weight:bold;
+              "
+            >
+              ${branch.branch_name || branch.branch_id}
+            </div>
+
+            <div class="small">
+              ${branch.branch_id || ''}
+            </div>
+          </div>
+
+          <div
+            style="
+              font-size:23px;
+              font-weight:bold;
+              text-align:right;
+              color:#166534;
+            "
+          >
+            ${money(branch.amount)} บาท
+          </div>
+        </div>
+
+        <div
+          style="
+            display:grid;
+            grid-template-columns:repeat(2,1fr);
+            gap:8px;
+            margin-top:14px;
+          "
+        >
+          ${renderBranchMiniMetric_(
+            'ขาย',
+            branch.sold_qty
+          )}
+
+          ${renderBranchMiniMetric_(
+            'แถม',
+            branch.free_qty,
+            Number(branch.free_qty || 0) > 0
+              ? `${Number(branch.free_percent || 0)}%`
+              : ''
+          )}
+
+          ${renderBranchMiniMetric_(
+            'เสีย',
+            branch.damaged_qty,
+            damageQty > 0
+              ? `${Number(branch.damage_percent || 0)}%`
+              : '',
+            damageQty > 0
+          )}
+
+          ${renderBranchMiniMetric_(
+            'ชิม',
+            branch.tasting_qty
+          )}
+        </div>
+
+        <button
+          type="button"
+          class="secondary"
+          style="margin-top:14px;"
+          onclick="toggleSalesBranchDetail('${panelId}', this)"
+        >
+          ดูรายละเอียดสินค้า
+        </button>
+      </div>
+
+      <div
+        id="${panelId}"
+        style="
+          display:none;
+          padding:0 16px 16px;
+        "
+      >
+        ${renderSalesBranchProducts_(
+          branch.products || []
+        )}
+      </div>
+    </div>
+  `;
+}
+
+function renderBranchMiniMetric_(
+  title,
+  value,
+  detail,
+  danger
+) {
+  return `
+    <div
+      style="
+        border:1px solid ${
+          danger ? '#fecaca' : '#e5e7eb'
+        };
+        background:${
+          danger ? '#fef2f2' : '#f9fafb'
+        };
+        border-radius:12px;
+        padding:10px;
+      "
+    >
+      <div class="small">
+        ${title}
+      </div>
+
+      <div
+        style="
+          font-size:21px;
+          font-weight:bold;
+          margin-top:3px;
+          color:${
+            danger ? '#b91c1c' : '#111827'
+          };
+        "
+      >
+        ${Number(value || 0).toLocaleString()}
+      </div>
+
+      ${
+        detail
+          ? `
+            <div class="small">
+              ${detail}
+            </div>
+          `
+          : ''
+      }
+    </div>
+  `;
+}
+
+function renderSalesBranchProducts_(rows) {
+  if (!rows || !rows.length) {
+    return `
+      <div class="status">
+        ไม่มีรายการสินค้า
+      </div>
+    `;
+  }
+
+  let html = `
+    <div
+      style="
+        font-weight:bold;
+        margin-bottom:8px;
+      "
+    >
+      รายละเอียดสินค้า
+    </div>
+  `;
+
+  rows.forEach(function(row) {
+    html += `
+      <div
+        style="
+          padding:12px 0;
+          border-bottom:1px solid #e5e7eb;
+        "
+      >
+        <div
+          style="
+            display:flex;
+            justify-content:space-between;
+            gap:8px;
+          "
+        >
+          <div style="font-weight:bold;">
+            ${row.product_name || row.product_id}
+          </div>
+
+          <div style="font-weight:bold;">
+            ${money(row.amount)} บาท
+          </div>
+        </div>
+
+        <div
+          style="
+            display:grid;
+            grid-template-columns:repeat(4,1fr);
+            gap:5px;
+            margin-top:8px;
+            font-size:13px;
+            text-align:center;
+          "
+        >
+          <div>
+            <div class="small">ขาย</div>
+            <b>${Number(row.sold_qty || 0).toLocaleString()}</b>
+          </div>
+
+          <div>
+            <div class="small">แถม</div>
+            <b>${Number(row.free_qty || 0).toLocaleString()}</b>
+          </div>
+
+          <div>
+            <div class="small">เสีย</div>
+            <b
+              style="
+                color:${
+                  Number(row.damaged_qty || 0) > 0
+                    ? '#dc2626'
+                    : '#111827'
+                };
+              "
+            >
+              ${Number(row.damaged_qty || 0).toLocaleString()}
+            </b>
+          </div>
+
+          <div>
+            <div class="small">ชิม</div>
+            <b>${Number(row.tasting_qty || 0).toLocaleString()}</b>
+          </div>
+        </div>
+      </div>
+    `;
+  });
+
+  return html;
+}
+
+function toggleSalesBranchDetail(
+  panelId,
+  button
+) {
+  const panel =
+    document.getElementById(panelId);
+
+  if (!panel) {
+    return;
+  }
+
+  const isOpen =
+    panel.style.display !== 'none';
+
+  panel.style.display =
+    isOpen ? 'none' : 'block';
+
+  if (button) {
+    button.textContent =
+      isOpen
+        ? 'ดูรายละเอียดสินค้า'
+        : 'ซ่อนรายละเอียดสินค้า';
+  }
+}
+
+function formatAnalysisDate_(dateText) {
+  const text =
+    String(dateText || '').trim();
+
+  const match =
+    text.match(
+      /^(\d{4})-(\d{2})-(\d{2})$/
+    );
+
+  if (!match) {
+    return text || '-';
+  }
+
+  const thaiMonths = [
+    '',
+    'ม.ค.',
+    'ก.พ.',
+    'มี.ค.',
+    'เม.ย.',
+    'พ.ค.',
+    'มิ.ย.',
+    'ก.ค.',
+    'ส.ค.',
+    'ก.ย.',
+    'ต.ค.',
+    'พ.ย.',
+    'ธ.ค.'
+  ];
+
+  const year =
+    Number(match[1]) + 543;
+
+  const month =
+    thaiMonths[Number(match[2])] ||
+    match[2];
+
+  const day =
+    Number(match[3]);
+
+  return `${day} ${month} ${year}`;
+}
+
+
 
 function renderHelpPage() {
 
