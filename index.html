@@ -1109,6 +1109,17 @@ async function renderSalesPage() {
         margin-top:12px;
       "
     >
+
+    <label>รูปแบบวันที่</label>
+
+<select
+  id="dailyDetailDateMode"
+  onchange="changeDailyDetailDateMode_()"
+>
+  <option value="SINGLE">วันเดียว</option>
+  <option value="RANGE">ช่วงวันที่</option>
+</select>
+    
       <button
         type="button"
         onclick="setDailyDetailDate_('TODAY')"
@@ -1125,10 +1136,33 @@ async function renderSalesPage() {
       </button>
     </div>
 
-    <input
-      id="dailyDetailDate"
-      type="date"
-    >
+    <div id="dailySingleDateBox">
+  <label>วันที่ตรวจสอบ</label>
+
+  <input
+    id="dailyDetailDate"
+    type="date"
+  >
+</div>
+
+<div
+  id="dailyRangeDateBox"
+  style="display:none;"
+>
+  <label>วันที่เริ่มต้น</label>
+
+  <input
+    id="dailyDetailStartDate"
+    type="date"
+  >
+
+  <label>วันที่สิ้นสุด</label>
+
+  <input
+    id="dailyDetailEndDate"
+    type="date"
+  >
+</div>
 
     <label>สาขา</label>
     <select id="dailyDetailBranch">
@@ -1381,6 +1415,14 @@ async function loadDailySalesDetail() {
         86400000
       ) + 1;
 
+    if (
+  !Number.isFinite(diffDays) ||
+  diffDays <= 0
+) {
+  alert('ช่วงวันที่ไม่ถูกต้อง');
+  return;
+}
+    
     if (diffDays > 31) {
       alert(
         'กรุณาเลือกช่วงวันที่ไม่เกิน 31 วัน'
@@ -1494,27 +1536,6 @@ function renderDailySalesDetail_(data) {
   html += `
     <div class="card">
       <h2>ประวัติการบันทึก</h2>
-
-      <div class="small">
-  เรียงจากรายการล่าสุด
-
-  ${
-    data.transaction_truncated
-      ? `
-        <br>
-        แสดงล่าสุด
-        ${Number(
-          data.transaction_limit || 0
-        ).toLocaleString()}
-        รายการ จากทั้งหมด
-        ${Number(
-          data.transaction_count || 0
-        ).toLocaleString()}
-        รายการ
-      `
-      : ''
-  }
-</div>
 
 <div class="small">
   ${
