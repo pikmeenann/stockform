@@ -1092,7 +1092,7 @@ async function renderSalesPage() {
 
   document.body.innerHTML = `
   <div class="card">
-    <h1>ตรวจสอบยอดรายวัน</h1>
+    <h1>ตรวจสอบรายละเอียดยอดขาย</h1>
 
     <div class="small">
       เลือกวันที่และสาขาให้เรียบร้อย
@@ -1215,6 +1215,36 @@ function changeDailyDetailDateMode_() {
   if (mode === 'RANGE') {
     singleBox.style.display = 'none';
     rangeBox.style.display = 'block';
+
+    const singleDate =
+      document.getElementById(
+        'dailyDetailDate'
+      ).value;
+
+    const startInput =
+      document.getElementById(
+        'dailyDetailStartDate'
+      );
+
+    const endInput =
+      document.getElementById(
+        'dailyDetailEndDate'
+      );
+
+    const defaultDate =
+      singleDate ||
+      getLocalDateKey_(new Date());
+
+    if (!startInput.value) {
+      startInput.value =
+        defaultDate;
+    }
+
+    if (!endInput.value) {
+      endInput.value =
+        defaultDate;
+    }
+
   } else {
     singleBox.style.display = 'block';
     rangeBox.style.display = 'none';
@@ -1280,9 +1310,28 @@ async function loadDailySalesDetail() {
       'dailyDetailLoadBtn'
     );
 
+  const mode =
+    String(
+      document.getElementById(
+        'dailyDetailDateMode'
+      ).value || 'SINGLE'
+    )
+      .trim()
+      .toUpperCase();
+
   const dateText =
     document.getElementById(
       'dailyDetailDate'
+    ).value;
+
+  const startDate =
+    document.getElementById(
+      'dailyDetailStartDate'
+    ).value;
+
+  const endDate =
+    document.getElementById(
+      'dailyDetailEndDate'
     ).value;
 
   const branchId =
@@ -1295,14 +1344,56 @@ async function loadDailySalesDetail() {
     return;
   }
 
-  if (!dateText) {
-    alert('กรุณาเลือกวันที่');
-    return;
+  if (mode === 'SINGLE') {
+    if (!dateText) {
+      alert('กรุณาเลือกวันที่');
+      return;
+    }
+  }
+
+  if (mode === 'RANGE') {
+    if (!startDate) {
+      alert('กรุณาเลือกวันที่เริ่มต้น');
+      return;
+    }
+
+    if (!endDate) {
+      alert('กรุณาเลือกวันที่สิ้นสุด');
+      return;
+    }
+
+    if (startDate > endDate) {
+      alert(
+        'วันที่เริ่มต้นต้องไม่มากกว่าวันที่สิ้นสุด'
+      );
+      return;
+    }
+
+    const start =
+      new Date(startDate + 'T00:00:00');
+
+    const end =
+      new Date(endDate + 'T00:00:00');
+
+    const diffDays =
+      Math.floor(
+        (end.getTime() - start.getTime()) /
+        86400000
+      ) + 1;
+
+    if (diffDays > 31) {
+      alert(
+        'กรุณาเลือกช่วงวันที่ไม่เกิน 31 วัน'
+      );
+      return;
+    }
   }
 
   resultBox.className = 'status';
   resultBox.textContent =
-    'กำลังโหลดรายละเอียดรายวัน...';
+    mode === 'RANGE'
+      ? 'กำลังโหลดรายละเอียดช่วงวันที่...'
+      : 'กำลังโหลดรายละเอียดรายวัน...';
 
   if (button) {
     button.disabled = true;
@@ -1314,8 +1405,27 @@ async function loadDailySalesDetail() {
       await apiGet({
         action: 'dailySalesDetail',
         lineUserId: lineUserId,
-        dateText: dateText,
-        branchId: branchId
+
+        dateMode:
+          mode,
+
+        dateText:
+          mode === 'SINGLE'
+            ? dateText
+            : '',
+
+        startDate:
+          mode === 'RANGE'
+            ? startDate
+            : '',
+
+        endDate:
+          mode === 'RANGE'
+            ? endDate
+            : '',
+
+        branchId:
+          branchId
       });
 
     if (!data.ok) {
@@ -1338,7 +1448,8 @@ async function loadDailySalesDetail() {
   } finally {
     if (button) {
       button.disabled = false;
-      button.textContent = 'แสดงรายละเอียด';
+      button.textContent =
+        'แสดงรายละเอียด';
     }
   }
 }
@@ -1385,8 +1496,50 @@ function renderDailySalesDetail_(data) {
       <h2>ประวัติการบันทึก</h2>
 
       <div class="small">
-        เรียงจากรายการล่าสุด
-      </div>
+  เรียงจากรายการล่าสุด
+
+  ${
+    data.transaction_truncated
+      ? `
+        <br>
+        แสดงล่าสุด
+        ${Number(
+          data.transaction_limit || 0
+        ).toLocaleString()}
+        รายการ จากทั้งหมด
+        ${Number(
+          data.transaction_count || 0
+        ).toLocaleString()}
+        รายการ
+      `
+      : ''
+  }
+</div>
+
+<div class="small">
+  ${
+    Number(data.transaction_limit || 0) === 0
+      ? 'กรุณาเลือกสาขาเดียว หากต้องการดูประวัติรายรายการ'
+      : 'เรียงจากรายการล่าสุด'
+  }
+
+  ${
+    data.transaction_truncated
+      ? `
+        <br>
+        แสดงล่าสุด
+        ${Number(
+          data.transaction_limit || 0
+        ).toLocaleString()}
+        รายการ จากทั้งหมด
+        ${Number(
+          data.transaction_count || 0
+        ).toLocaleString()}
+        รายการ
+      `
+      : ''
+  }
+</div>
 
       ${renderDailyTransactions_(
         data.transaction_rows || []
@@ -1399,12 +1552,28 @@ function renderDailySalesDetail_(data) {
 }
 
 function renderDailyOverview_(data) {
+  const dateLabel =
+    String(
+      data.date_mode || 'SINGLE'
+    ).toUpperCase() === 'RANGE'
+      ? (
+          formatThaiDateKey_(
+            data.start_date
+          ) +
+          ' ถึง ' +
+          formatThaiDateKey_(
+            data.end_date
+          )
+        )
+      : formatThaiDateKey_(
+          data.date ||
+          data.start_date
+        );
+
   return `
     <div class="card">
       <div class="small">
-        วันที่ ${formatThaiDateKey_(
-          data.date
-        )}
+        ช่วงข้อมูล ${dateLabel}
       </div>
 
       <div
