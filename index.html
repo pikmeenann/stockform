@@ -1091,69 +1091,68 @@ async function renderSalesPage() {
   }
 
   document.body.innerHTML = `
-    <div class="card">
-      <h1>ตรวจสอบยอดรายวัน</h1>
+  <div class="card">
+    <h1>ตรวจสอบยอดรายวัน</h1>
 
-      <div class="small">
-        ตรวจสอบยอดขาย แถม ของเสีย ชิม เติมสินค้า
-        และประวัติที่พนักงานบันทึก
-      </div>
+    <div class="small">
+      เลือกวันที่และสาขาให้เรียบร้อย
+      แล้วกด “แสดงรายละเอียด”
+    </div>
 
-      <div
-        style="
-          display:grid;
-          grid-template-columns:1fr 1fr;
-          gap:10px;
-          margin-top:14px;
-        "
+    <label>วันที่ตรวจสอบ</label>
+
+    <div
+      style="
+        display:grid;
+        grid-template-columns:1fr 1fr;
+        gap:10px;
+        margin-top:12px;
+      "
+    >
+      <button
+        type="button"
+        onclick="setDailyDetailDate_('TODAY')"
       >
-        <button
-          type="button"
-          onclick="setDailyDetailDate_('TODAY')"
-        >
-          วันนี้
-        </button>
-
-        <button
-          type="button"
-          class="secondary"
-          onclick="setDailyDetailDate_('YESTERDAY')"
-        >
-          เมื่อวาน
-        </button>
-      </div>
-
-      <label>วันที่ตรวจสอบ</label>
-      <input
-        id="dailyDetailDate"
-        type="date"
-        onchange="loadDailySalesDetail()"
-      >
-
-      <label>สาขา</label>
-      <select
-        id="dailyDetailBranch"
-        onchange="loadDailySalesDetail()"
-      >
-        <option value="ALL">ทุกสาขา</option>
-      </select>
+        วันนี้
+      </button>
 
       <button
-        id="dailyDetailLoadBtn"
         type="button"
-        onclick="loadDailySalesDetail()"
+        class="secondary"
+        onclick="setDailyDetailDate_('YESTERDAY')"
       >
-        แสดงรายละเอียด
+        เมื่อวาน
       </button>
     </div>
 
-    <div
-      id="dailyDetailResult"
-      class="status"
+    <input
+      id="dailyDetailDate"
+      type="date"
     >
-      กำลังโหลดข้อมูล...
-    </div>
-  `;
+
+    <label>สาขา</label>
+    <select id="dailyDetailBranch">
+      <option value="">เลือกสาขา</option>
+      <option value="ALL">ภาพรวมทุกสาขา</option>
+    </select>
+
+    <button
+      id="dailyDetailLoadBtn"
+      type="button"
+      onclick="loadDailySalesDetail()"
+    >
+      แสดงรายละเอียด
+    </button>
+  </div>
+
+  <div
+    id="dailyDetailResult"
+    class="status"
+  >
+    กรุณาเลือกวันที่และสาขา
+    แล้วกดแสดงรายละเอียด
+  </div>
+`;
 
   const branchSelect =
     document.getElementById(
@@ -1197,33 +1196,77 @@ function getLocalDateKey_(dateObj) {
   return `${year}-${month}-${day}`;
 }
 
-function setDailyDetailDate_(type) {
-  const input =
+function changeDailyDetailDateMode_() {
+  const mode =
     document.getElementById(
-      'dailyDetailDate'
+      'dailyDetailDateMode'
+    ).value;
+
+  const singleBox =
+    document.getElementById(
+      'dailySingleDateBox'
     );
 
-  if (!input) {
-    return;
+  const rangeBox =
+    document.getElementById(
+      'dailyRangeDateBox'
+    );
+
+  if (mode === 'RANGE') {
+    singleBox.style.display = 'none';
+    rangeBox.style.display = 'block';
+  } else {
+    singleBox.style.display = 'block';
+    rangeBox.style.display = 'none';
   }
 
+  const resultBox =
+    document.getElementById(
+      'dailyDetailResult'
+    );
+
+  if (resultBox) {
+    resultBox.className = 'status';
+    resultBox.textContent =
+      'เลือกวันที่และสาขาให้เรียบร้อย แล้วกดแสดงรายละเอียด';
+  }
+}
+
+function setDailyDetailDate_(type) {
   const date =
     new Date();
 
-  if (
+  const cleanType =
     String(type || '')
       .trim()
-      .toUpperCase() === 'YESTERDAY'
-  ) {
+      .toUpperCase();
+
+  if (cleanType === 'YESTERDAY') {
     date.setDate(
       date.getDate() - 1
     );
   }
 
-  input.value =
-    getLocalDateKey_(date);
+  const input =
+    document.getElementById(
+      'dailyDetailDate'
+    );
 
-  loadDailySalesDetail();
+  if (input) {
+    input.value =
+      getLocalDateKey_(date);
+  }
+
+  const resultBox =
+    document.getElementById(
+      'dailyDetailResult'
+    );
+
+  if (resultBox) {
+    resultBox.className = 'status';
+    resultBox.textContent =
+      'เลือกสาขาแล้วกด “แสดงรายละเอียด”';
+  }
 }
 
 async function loadDailySalesDetail() {
@@ -1246,6 +1289,11 @@ async function loadDailySalesDetail() {
     document.getElementById(
       'dailyDetailBranch'
     ).value;
+
+  if (!branchId) {
+    alert('กรุณาเลือกสาขา');
+    return;
+  }
 
   if (!dateText) {
     alert('กรุณาเลือกวันที่');
@@ -5863,15 +5911,6 @@ function renderFactoryPurchaseOrderForm_() {
     `${yyyy}-${mm}-${dd}`;
 }
 
-
-function escapeHtml_(text) {
-  return String(text || '')
-    .replace(/&/g, '&amp;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
 
 function filterFactoryPoSupplier_(supplier) {
   document.querySelectorAll('.factory-po-row')
