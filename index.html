@@ -1090,7 +1090,7 @@ async function renderSalesPage() {
     return;
   }
 
-  document.body.innerHTML = `
+document.body.innerHTML = `
   <div class="card">
     <h1>ตรวจสอบรายละเอียดยอดขาย</h1>
 
@@ -1099,7 +1099,20 @@ async function renderSalesPage() {
       แล้วกด “แสดงรายละเอียด”
     </div>
 
-    <label>วันที่ตรวจสอบ</label>
+    <label>รูปแบบวันที่</label>
+
+    <select
+      id="dailyDetailDateMode"
+      onchange="changeDailyDetailDateMode_()"
+    >
+      <option value="SINGLE">
+        วันเดียว
+      </option>
+
+      <option value="RANGE">
+        ช่วงวันที่
+      </option>
+    </select>
 
     <div
       style="
@@ -1109,17 +1122,6 @@ async function renderSalesPage() {
         margin-top:12px;
       "
     >
-
-    <label>รูปแบบวันที่</label>
-
-<select
-  id="dailyDetailDateMode"
-  onchange="changeDailyDetailDateMode_()"
->
-  <option value="SINGLE">วันเดียว</option>
-  <option value="RANGE">ช่วงวันที่</option>
-</select>
-    
       <button
         type="button"
         onclick="setDailyDetailDate_('TODAY')"
@@ -1137,37 +1139,43 @@ async function renderSalesPage() {
     </div>
 
     <div id="dailySingleDateBox">
-  <label>วันที่ตรวจสอบ</label>
+      <label>วันที่ตรวจสอบ</label>
 
-  <input
-    id="dailyDetailDate"
-    type="date"
-  >
-</div>
+      <input
+        id="dailyDetailDate"
+        type="date"
+      >
+    </div>
 
-<div
-  id="dailyRangeDateBox"
-  style="display:none;"
->
-  <label>วันที่เริ่มต้น</label>
+    <div
+      id="dailyRangeDateBox"
+      style="display:none;"
+    >
+      <label>วันที่เริ่มต้น</label>
 
-  <input
-    id="dailyDetailStartDate"
-    type="date"
-  >
+      <input
+        id="dailyDetailStartDate"
+        type="date"
+      >
 
-  <label>วันที่สิ้นสุด</label>
+      <label>วันที่สิ้นสุด</label>
 
-  <input
-    id="dailyDetailEndDate"
-    type="date"
-  >
-</div>
+      <input
+        id="dailyDetailEndDate"
+        type="date"
+      >
+    </div>
 
     <label>สาขา</label>
+
     <select id="dailyDetailBranch">
-      <option value="">เลือกสาขา</option>
-      <option value="ALL">ภาพรวมทุกสาขา</option>
+      <option value="">
+        เลือกสาขา
+      </option>
+
+      <option value="ALL">
+        ภาพรวมทุกสาขา
+      </option>
     </select>
 
     <button
