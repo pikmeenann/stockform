@@ -618,35 +618,98 @@ function renderBranches() {
 
   select.innerHTML = '';
 
-  const role = String(appData.user.role || '').toLowerCase();
-  const userBranchId = String(appData.user.branch_id || '').trim();
+  const role =
+    String(appData.user.role || '')
+      .trim()
+      .toLowerCase();
 
-  let branches = appData.branches || [];
+  const userBranchId =
+    String(appData.user.branch_id || '')
+      .trim()
+      .toUpperCase();
 
-  if (role === 'staff') {
-    branches = branches.filter(function(b) {
-      return String(b.branch_id).trim() === userBranchId;
-    });
-  }
+  // ใช้ branches ที่ backend อนุญาตมาให้โดยตรง
+  const branches = appData.branches || [];
 
   branches.forEach(function(b) {
-    const option = document.createElement('option');
-    option.value = b.branch_id;
-    option.textContent = b.branch_name;
+    const option =
+      document.createElement('option');
+
+    option.value =
+      String(b.branch_id || '')
+        .trim()
+        .toUpperCase();
+
+    option.textContent =
+      b.branch_name || b.branch_id;
+
     select.appendChild(option);
   });
 
-if (role === 'staff') {
-  select.style.display = 'none';
+  const display =
+    document.getElementById(
+      'stockBranchDisplay'
+    );
 
-  const display = document.getElementById('stockBranchDisplay');
-  if (display) {
-    display.style.display = 'block';
-    display.textContent = 'สาขา: ' + userBranchId;
+  // STAFF มีสิทธิ์เพียงสาขาเดียว
+  if (
+    role === 'staff' &&
+    branches.length === 1
+  ) {
+    select.value =
+      String(branches[0].branch_id || '')
+        .trim()
+        .toUpperCase();
+
+    select.style.display = 'none';
+
+    if (display) {
+      display.style.display = 'block';
+      display.textContent =
+        'สาขา: ' +
+        (
+          branches[0].branch_name ||
+          branches[0].branch_id
+        );
+    }
   }
-} else {
-  select.style.display = 'block';
-}
+
+  // STAFF ที่ไปช่วยสาขาอื่น
+  // เช่น ฮาดา R9 + EV
+  else if (
+    role === 'staff' &&
+    branches.length > 1
+  ) {
+    select.style.display = 'block';
+
+    // ตั้งสาขาหลักเป็นค่าเริ่มต้น
+    const homeExists =
+      branches.some(function(b) {
+        return (
+          String(b.branch_id || '')
+            .trim()
+            .toUpperCase() ===
+          userBranchId
+        );
+      });
+
+    if (homeExists) {
+      select.value = userBranchId;
+    }
+
+    if (display) {
+      display.style.display = 'none';
+    }
+  }
+
+  // Manager / Owner
+  else {
+    select.style.display = 'block';
+
+    if (display) {
+      display.style.display = 'none';
+    }
+  }
 
   loadStockMap();
 }
