@@ -2604,6 +2604,9 @@ const data = await apiGet({
         ${renderQtyRankingBlock('เติมสูงสุด', data.branch_restock_summary || [])}
       </div>
 
+      <h2 style="margin-top:18px;">สต๊อกคงเหลือสิ้นเดือน</h2>
+      ${renderMonthEndStock_(data.month_end_stock)}
+
       <h2 style="margin-top:18px;">แยกตามสาขา</h2>
     `;
 
@@ -2651,6 +2654,73 @@ initBranchTopProducts();
       </div>
     `;
   }
+}
+
+    function renderMonthEndStock_(data) {
+  if (!data || !data.branches || !data.branches.length) {
+    return `
+      <div class="status">
+        ไม่พบข้อมูลสต๊อกคงเหลือของเดือนนี้
+      </div>
+    `;
+  }
+
+  let html = `
+    <div class="metric-card">
+      <div class="metric-title">
+        คงเหลือรวม ณ ${formatShortDate(data.month_end_date)}
+      </div>
+      <div class="metric-value">
+        ${Number(data.total_stock || 0).toLocaleString('th-TH')} ชิ้น
+      </div>
+    </div>
+  `;
+
+  data.branches.forEach(function(branch) {
+    html += `
+      <div class="metric-card" style="margin-top:12px;">
+        <b>${branch.branch_name}</b>
+        <div class="small">
+          คงเหลือรวม
+          ${Number(branch.total_stock || 0).toLocaleString('th-TH')}
+          ชิ้น
+        </div>
+
+        <div class="table-wrap" style="margin-top:10px;">
+          <table>
+            <thead>
+              <tr>
+                <th>สินค้า</th>
+                <th>คงเหลือ</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${branch.products.map(function(product) {
+                const negativeClass =
+                  Number(product.stock || 0) < 0
+                    ? 'diff-minus'
+                    : '';
+
+                return `
+                  <tr>
+                    <td class="product">
+                      ${product.product_name}
+                      <span class="price">${product.product_id}</span>
+                    </td>
+                    <td class="${negativeClass}">
+                      ${Number(product.stock || 0).toLocaleString('th-TH')}
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+  });
+
+  return html;
 }
 
     function formatShortDate(dateText) {
