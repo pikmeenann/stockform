@@ -551,6 +551,11 @@ if (currentAction === 'dashboard') {
   return;
 }
 
+if (currentAction === 'stock_audit') {
+  await renderStockAuditPage();
+  return;
+}
+
 if (currentAction === 'restock') {
   await renderRestockPage();
   return;
@@ -2477,6 +2482,226 @@ function renderHelpPage() {
 
 }
     
+async function renderStockAuditPage() {
+  const role = String(appData.user.role || '').toLowerCase();
+
+  if (!['manager', 'owner'].includes(role)) {
+    document.body.innerHTML = `
+      <div class="card">
+        <h1>ไม่มีสิทธิ์</h1>
+        <div class="status">หน้านี้สำหรับหัวหน้า/เจ้าของเท่านั้น</div>
+      </div>
+    `;
+    return;
+  }
+
+  const now = new Date();
+  const start = new Date(now);
+  start.setDate(start.getDate() - 30);
+
+  const toDateInput_ = function(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
+  const branches = appData.branches || [];
+  const products = appData.allProducts || appData.products || [];
+
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>ตรวจสอบสต๊อกย้อนหลัง</h1>
+      <div class="small">
+        ตรวจหาวันที่สต๊อกเพิ่มผิดปกติและเปิดดูรายการ Ledger ต้นเหตุ
+      </div>
+
+      <label>สาขา</label>
+      <select id="auditBranch">
+        ${branches.map(function(branch) {
+          return `
+            <option value="${escapeHtml_(branch.branch_id)}">
+              ${escapeHtml_(branch.branch_name)}
+            </option>
+          `;
+        }).join('')}
+      </select>
+
+      <label>สินค้า</label>
+      <select id="auditProduct">
+        ${products.map(function(product) {
+          return `
+            <option value="${escapeHtml_(product.product_id)}">
+              ${escapeHtml_(product.product_name)} (${escapeHtml_(product.product_id)})
+            </option>
+          `;
+        }).join('')}
+      </select>
+
+      <div class="dashboard-grid" style="grid-template-columns:1fr 1fr;">
+        <div>
+          <label>วันที่เริ่ม</label>
+          <input id="auditStartDate" type="date" value="${toDateInput_(start)}">
+        </div>
+        <div>
+          <label>วันที่สิ้นสุด</label>
+          <input id="auditEndDate" type="date" value="${toDateInput_(now)}">
+        </div>
+      </div>
+
+      <button onclick="loadStockAudit()">ตรวจสอบสต๊อก</button>
+
+      <div id="stockAuditResult" style="margin-top:14px;">
+        <div class="status">เลือกข้อมูลแล้วกดตรวจสอบสต๊อก</div>
+      </div>
+    </div>
+  `;
+}
+
+async function loadStockAudit() {
+  const box = document.getElementById('stockAuditResult');
+  const branchId = document.getElementById('auditBranch').value;
+  const productId = document.getElementById('auditProduct').value;
+  const startDate = document.getElementById('auditStartDate').value;
+  const endDate = document.getElementById('auditEndDate').value;
+
+  if (!branchId || !productId || !startDate || !endDate) {
+    box.innerHTML = '<div class="status">กรุณาเลือกข้อมูลให้ครบ</div>';
+    return;
+  }
+
+  box.innerHTML = '<div class="status">กำลังตรวจสอบ Stock_Ledger...</div>';
+
+  try {
+    const data = await apiGet({
+      action: 'stockAudit',
+      lineUserId: lineUserId,
+      branchId: branchId,
+      productId: productId,
+      startDate: startDate,
+      endDate: endDate
+    });
+
+    if (!data.ok) {
+      box.innerHTML = `<div class="status">${escapeHtml_(data.message || 'โหลดข้อมูลไม่สำเร็จ')}</div>`;
+      return;
+    }
+
+    box.innerHTML = renderStockAuditResult_(data);
+  } catch (err) {
+    box.innerHTML = `
+      <div class="status">
+        เกิดข้อผิดพลาด: ${escapeHtml_(err.message || String(err))}
+      </div>
+    `;
+  }
+}
+
+function renderStockAuditResult_(data) {
+  let html = `
+    <div class="metric-card">
+      <div class="metric-title">
+        ${escapeHtml_(data.branch_name)} • ${escapeHtml_(data.product_name)}
+      </div>
+      <div class="metric-value">
+        ${Number(data.closing_stock || 0).toLocaleString('th-TH')} ชิ้น
+      </div>
+      <div class="small">
+        ยอดก่อนเริ่มช่วง ${Number(data.opening_stock || 0).toLocaleString('th-TH')} ชิ้น
+        • ถึงวันที่ ${formatShortDate(data.end_date)}
+      </div>
+    </div>
+
+    <div class="small" style="margin:12px 0;">
+      สีแดง = tx_id ซ้ำ • สีส้ม = รายการ Reset หรือมีสินค้าเข้าหลายรายการในวันเดียว
+    </div>
+  `;
+
+  if (!data.days || !data.days.length) {
+    return html + '<div class="status">ไม่พบข้อมูลในช่วงวันที่เลือก</div>';
+  }
+
+  html += `
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>วันที่</th>
+            <th>ยกมา</th>
+            <th>เข้า</th>
+            <th>ออก</th>
+            <th>สิ้นวัน</th>
+            <th>เปลี่ยน</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  data.days.forEach(function(day) {
+    const hasWarning = day.has_reset || Number(day.stock_in_count || 0) > 1;
+    const rowStyle = day.has_duplicate_tx
+      ? 'background:#fee2e2;'
+      : hasWarning
+        ? 'background:#ffedd5;'
+        : '';
+
+    const changeClass = Number(day.net_change || 0) > 0
+      ? 'diff-plus'
+      : Number(day.net_change || 0) < 0
+        ? 'diff-minus'
+        : 'diff-zero';
+
+    html += `
+      <tr style="${rowStyle}">
+        <td>
+          <details>
+            <summary style="cursor:pointer;font-weight:bold;">
+              ${formatShortDate(day.date)}
+            </summary>
+            ${renderStockAuditTransactions_(day.transactions || [])}
+          </details>
+        </td>
+        <td>${Number(day.opening_stock || 0).toLocaleString('th-TH')}</td>
+        <td class="diff-plus">${Number(day.qty_in || 0).toLocaleString('th-TH')}</td>
+        <td class="diff-minus">${Number(day.qty_out || 0).toLocaleString('th-TH')}</td>
+        <td><b>${Number(day.closing_stock || 0).toLocaleString('th-TH')}</b></td>
+        <td class="${changeClass}">
+          ${Number(day.net_change || 0) > 0 ? '+' : ''}${Number(day.net_change || 0).toLocaleString('th-TH')}
+        </td>
+      </tr>
+    `;
+  });
+
+  html += '</tbody></table></div>';
+  return html;
+}
+
+function renderStockAuditTransactions_(transactions) {
+  if (!transactions.length) {
+    return '<div class="small" style="padding:8px 0;">ไม่มีรายการในวันนี้</div>';
+  }
+
+  return transactions.map(function(tx) {
+    const flags = [];
+    if (tx.duplicate_tx) flags.push('TX ซ้ำ');
+    if (tx.reset_entry) flags.push('RESET');
+
+    return `
+      <div style="min-width:260px;padding:8px 0;border-bottom:1px solid #e5e7eb;white-space:normal;">
+        <b>${escapeHtml_(tx.time)} • ${escapeHtml_(tx.movement_type)}</b>
+        ${flags.length ? `<span class="diff-minus"> [${flags.join(', ')}]</span>` : ''}
+        <div class="small">
+          เข้า ${Number(tx.qty_in || 0).toLocaleString('th-TH')}
+          • ออก ${Number(tx.qty_out || 0).toLocaleString('th-TH')}
+        </div>
+        <div class="small">ผู้บันทึก: ${escapeHtml_(tx.recorder)}</div>
+        <div class="small">tx_id: ${escapeHtml_(tx.tx_id)}</div>
+        ${tx.note ? `<div class="small">หมายเหตุ: ${escapeHtml_(tx.note)}</div>` : ''}
+      </div>
+    `;
+  }).join('');
+}
+
 async function renderDashboardPage() {
   const role = String(appData.user.role || '').toLowerCase();
   if (!['manager', 'owner'].includes(role)) {
@@ -2604,9 +2829,6 @@ const data = await apiGet({
         ${renderQtyRankingBlock('เติมสูงสุด', data.branch_restock_summary || [])}
       </div>
 
-      <h2 style="margin-top:18px;">สต๊อกคงเหลือสิ้นเดือน</h2>
-      ${renderMonthEndStock_(data.month_end_stock)}
-
       <h2 style="margin-top:18px;">แยกตามสาขา</h2>
     `;
 
@@ -2654,73 +2876,6 @@ initBranchTopProducts();
       </div>
     `;
   }
-}
-
-    function renderMonthEndStock_(data) {
-  if (!data || !data.branches || !data.branches.length) {
-    return `
-      <div class="status">
-        ไม่พบข้อมูลสต๊อกคงเหลือของเดือนนี้
-      </div>
-    `;
-  }
-
-  let html = `
-    <div class="metric-card">
-      <div class="metric-title">
-        คงเหลือรวม ณ ${formatShortDate(data.month_end_date)}
-      </div>
-      <div class="metric-value">
-        ${Number(data.total_stock || 0).toLocaleString('th-TH')} ชิ้น
-      </div>
-    </div>
-  `;
-
-  data.branches.forEach(function(branch) {
-    html += `
-      <div class="metric-card" style="margin-top:12px;">
-        <b>${branch.branch_name}</b>
-        <div class="small">
-          คงเหลือรวม
-          ${Number(branch.total_stock || 0).toLocaleString('th-TH')}
-          ชิ้น
-        </div>
-
-        <div class="table-wrap" style="margin-top:10px;">
-          <table>
-            <thead>
-              <tr>
-                <th>สินค้า</th>
-                <th>คงเหลือ</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${branch.products.map(function(product) {
-                const negativeClass =
-                  Number(product.stock || 0) < 0
-                    ? 'diff-minus'
-                    : '';
-
-                return `
-                  <tr>
-                    <td class="product">
-                      ${product.product_name}
-                      <span class="price">${product.product_id}</span>
-                    </td>
-                    <td class="${negativeClass}">
-                      ${Number(product.stock || 0).toLocaleString('th-TH')}
-                    </td>
-                  </tr>
-                `;
-              }).join('')}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    `;
-  });
-
-  return html;
 }
 
     function formatShortDate(dateText) {
