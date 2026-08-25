@@ -335,6 +335,54 @@ td.product {
   gap: 10px;
 }
 
+.direct-restock-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.direct-restock-item {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.direct-restock-name {
+  min-height: 34px;
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: bold;
+}
+
+.direct-restock-meta {
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 11px;
+}
+
+.direct-restock-item input {
+  height: 39px;
+  margin-top: 7px;
+  padding: 5px;
+  font-size: 17px;
+  text-align: center;
+}
+
+.direct-restock-sticky {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  padding-top: 8px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  background: linear-gradient(
+    to bottom,
+    rgba(255,255,255,0),
+    #ffffff 22%
+  );
+}
+
 .mobile-product-row {
   display: grid;
   grid-template-columns: 1fr 90px;
@@ -4041,11 +4089,17 @@ async function renderDirectRestockPage() {
         กรุณาเลือกสาขา
       </div>
 
-      <button id="directRestockPreviewBtn"
-        onclick="previewDirectRestockFromLiff()"
-        disabled>
-        ตรวจสอบก่อนบันทึก
-      </button>
+      <label>หมายเหตุรวม</label>
+      <input id="directRestockOverallNote"
+        type="text" placeholder="ถ้ามี">
+
+      <div class="direct-restock-sticky">
+        <button id="directRestockPreviewBtn"
+          onclick="previewDirectRestockFromLiff()"
+          disabled>
+          ตรวจสอบก่อนบันทึก
+        </button>
+      </div>
     </div>
   `;
 
@@ -4117,26 +4171,21 @@ function renderDirectRestockItems_() {
     return;
   }
 
-  let html = '<div class="mobile-product-list">';
+  let html = '<div class="direct-restock-grid">';
 
   directRestockItems.forEach(function(item, index) {
     html += `
-      <div class="mobile-sale-card">
-        <div class="mobile-product-name">
+      <div class="direct-restock-item">
+        <div class="direct-restock-name">
           ${item.product_name || item.product_id}
         </div>
-        <div class="mobile-product-code">
-          ${item.product_id} • คงเหลือ ${Number(item.current_stock || 0)}
+        <div class="direct-restock-meta">
+          ${item.product_id} • เหลือ ${Number(item.current_stock || 0)}
         </div>
-
-        <label>จำนวนที่เข้า</label>
         <input id="direct_qty_${index}"
           type="number" min="0" step="1"
-          inputmode="numeric" placeholder="0">
-
-        <label>หมายเหตุรายการ</label>
-        <input id="direct_note_${index}"
-          type="text" placeholder="ถ้ามี">
+          inputmode="numeric" placeholder="จำนวนเข้า"
+          aria-label="จำนวนเข้า ${item.product_name || item.product_id}">
       </div>
     `;
   });
@@ -4155,6 +4204,11 @@ function collectDirectRestockPayload_() {
 
   const items = [];
 
+  const overallNote =
+    String(
+      document.getElementById('directRestockOverallNote').value || ''
+    ).trim();
+
   directRestockItems.forEach(function(item, index) {
     const qty = Number(
       document.getElementById('direct_qty_' + index).value || 0
@@ -4164,10 +4218,7 @@ function collectDirectRestockPayload_() {
       items.push({
         product_id: item.product_id,
         qty: qty,
-        note:
-          document
-            .getElementById('direct_note_' + index)
-            .value.trim()
+        note: overallNote
       });
     }
   });
@@ -4243,6 +4294,10 @@ async function previewDirectRestockFromLiff() {
 
     directRestockClientRequestId =
       createDirectRestockClientRequestId_();
+
+    document.getElementById(
+      'directRestockOverallNote'
+    ).value = '';
 
     await loadDirectRestockItems();
 
