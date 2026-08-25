@@ -557,12 +557,27 @@ if (currentAction === 'stock_audit') {
 }
 
 if (currentAction === 'restock') {
-  await renderRestockPage();
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>ปิดช่องทางเติมสินค้าเดิมแล้ว</h1>
+      <div class="status">
+        พนักงานไม่ต้องส่งคำขอเติมสินค้าแล้ว<br>
+        โรงงานจะเป็นผู้บันทึกสินค้าเข้าสาขาโดยตรง
+      </div>
+    </div>
+  `;
   return;
 }
 
 if (currentAction === 'restock_admin') {
-  await renderRestockAdminPage();
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>ปิดหน้าการอนุมัติเติมสินค้าเดิมแล้ว</h1>
+      <div class="status">
+        ระบบเปลี่ยนเป็นโรงงานบันทึกสินค้าเข้าสาขาโดยตรง
+      </div>
+    </div>
+  `;
   return;
 }
 
