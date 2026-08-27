@@ -3851,12 +3851,34 @@ async function submitConfirmed() {
 
     closePreview();
 
-    alert(
-      'บันทึกเรียบร้อย\n\n' +
-      'ยอดขายรวม: ' +
-      Number(data.totalAmount || 0).toLocaleString() +
-      ' บาท'
-    );
+    const savedBranch =
+  (appData.branches || []).find(function(branch) {
+    return String(branch.branch_id || '').trim().toUpperCase() ===
+      String(pendingPayload.branchId || '').trim().toUpperCase();
+  });
+
+const savedBranchName =
+  savedBranch
+    ? (savedBranch.branch_name || savedBranch.branch_id)
+    : pendingPayload.branchId;
+
+const savedDate =
+  formatThaiDateKey_(pendingPayload.entryDate);
+
+const recorderName =
+  (appData.user && appData.user.name)
+    ? appData.user.name
+    : document.getElementById('recorderName').value || '-';
+
+alert(
+  'บันทึกเรียบร้อย\n\n' +
+  'สาขา: ' + savedBranchName + '\n' +
+  'วันที่ยอดขาย: ' + savedDate + '\n' +
+  'ผู้บันทึก: ' + recorderName + '\n' +
+  'ยอดขายรวม: ' +
+  Number(data.totalAmount || 0).toLocaleString('th-TH') +
+  ' บาท'
+);
 
     clearForm();
 
