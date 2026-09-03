@@ -4182,10 +4182,14 @@ async function loadDirectRestockItems() {
 
 function renderDirectRestockItems_() {
   const box =
-    document.getElementById('directRestockItemsBox');
+    document.getElementById(
+      'directRestockItemsBox'
+    );
 
   const button =
-    document.getElementById('directRestockPreviewBtn');
+    document.getElementById(
+      'directRestockPreviewBtn'
+    );
 
   if (!directRestockItems.length) {
     box.innerHTML = 'ไม่พบสินค้า';
@@ -4193,125 +4197,552 @@ function renderDirectRestockItems_() {
     return;
   }
 
-  let html = '<div class="direct-restock-grid">';
+  let html =
+    '<div class="direct-restock-grid">';
 
-  directRestockItems.forEach(function(item, index) {
-    html += `
-      <div class="direct-restock-item">
-        <div class="direct-restock-name">
-          ${item.product_name || item.product_id}
-        </div>
-        <div class="direct-restock-meta">
-          ${item.product_id} • เหลือ ${Number(item.current_stock || 0)}
-        </div>
-        <input id="direct_qty_${index}"
-          type="number" min="0" step="1"
-          inputmode="numeric" placeholder="จำนวนเข้า"
-          aria-label="จำนวนเข้า ${item.product_name || item.product_id}">
-      </div>
-    `;
-  });
+  directRestockItems.forEach(
+    function(item, productIndex) {
+      const productName =
+        escapeHtml_(
+          item.product_name ||
+          item.product_id
+        );
+
+      const productId =
+        escapeHtml_(
+          item.product_id || ''
+        );
+
+      html += `
+        <div
+          class="direct-restock-item"
+          data-direct-product-index="${productIndex}"
+        >
+          <div class="direct-restock-name">
+            ${productName}
+          </div>
+
+          <div class="direct-restock-meta">
+            ${productId}
+            • เหลือ
+            ${Number(item.current_stock || 0)}
+          </div>
+      `;
+
+      if (item.lot_required === true) {
+        html += `
+          <div style="
+            margin-top:8px;
+            padding:8px;
+            border-radius:10px;
+            background:#fff7ed;
+            color:#9a3412;
+            font-size:12px;
+          ">
+            สินค้านี้ต้องระบุ Lot No. 4 หลัก
+          </div>
+
+          <div
+            id="direct_lot_rows_${productIndex}"
+            class="direct-lot-rows"
+            style="margin-top:10px;"
+          >
+            ${buildDirectLotRowHtml_(
+              productIndex,
+              1
+            )}
+          </div>
+
+          <button
+            type="button"
+            class="secondary"
+            style="
+              margin-top:8px;
+              padding:8px 10px;
+              font-size:13px;
+            "
+            onclick="addDirectLotRow_(${productIndex})"
+          >
+            + เพิ่ม Lot ของ ${productName}
+          </button>
+        `;
+
+      } else {
+        html += `
+          <input
+            id="direct_qty_${productIndex}"
+            type="number"
+            min="0"
+            step="1"
+            inputmode="numeric"
+            placeholder="จำนวนเข้า"
+            aria-label="จำนวนเข้า ${productName}"
+          >
+        `;
+      }
+
+      html += '</div>';
+    }
+  );
 
   html += '</div>';
+
   box.innerHTML = html;
   button.disabled = false;
+
+  const stockDateInput =
+    document.getElementById(
+      'directRestockDate'
+    );
+
+  if (stockDateInput) {
+    stockDateInput.onchange =
+      refreshAllDirectLotRows_;
+  }
+}
+
+function renderDirectRestockItems_() {
+  const box =
+    document.getElementById(
+      'directRestockItemsBox'
+    );
+
+  const button =
+    document.getElementById(
+      'directRestockPreviewBtn'
+    );
+
+  if (!directRestockItems.length) {
+    box.innerHTML = 'ไม่พบสินค้า';
+    button.disabled = true;
+    return;
+  }
+
+  let html =
+    '<div class="direct-restock-grid">';
+
+  directRestockItems.forEach(
+    function(item, productIndex) {
+      const productName =
+        escapeHtml_(
+          item.product_name ||
+          item.product_id
+        );
+
+      const productId =
+        escapeHtml_(
+          item.product_id || ''
+        );
+
+      html += `
+        <div
+          class="direct-restock-item"
+          data-direct-product-index="${productIndex}"
+        >
+          <div class="direct-restock-name">
+            ${productName}
+          </div>
+
+          <div class="direct-restock-meta">
+            ${productId}
+            • เหลือ
+            ${Number(item.current_stock || 0)}
+          </div>
+      `;
+
+      if (item.lot_required === true) {
+        html += `
+          <div style="
+            margin-top:8px;
+            padding:8px;
+            border-radius:10px;
+            background:#fff7ed;
+            color:#9a3412;
+            font-size:12px;
+          ">
+            สินค้านี้ต้องระบุ Lot No. 4 หลัก
+          </div>
+
+          <div
+            id="direct_lot_rows_${productIndex}"
+            class="direct-lot-rows"
+            style="margin-top:10px;"
+          >
+            ${buildDirectLotRowHtml_(
+              productIndex,
+              1
+            )}
+          </div>
+
+          <button
+            type="button"
+            class="secondary"
+            style="
+              margin-top:8px;
+              padding:8px 10px;
+              font-size:13px;
+            "
+            onclick="addDirectLotRow_(${productIndex})"
+          >
+            + เพิ่ม Lot ของ ${productName}
+          </button>
+        `;
+
+      } else {
+        html += `
+          <input
+            id="direct_qty_${productIndex}"
+            type="number"
+            min="0"
+            step="1"
+            inputmode="numeric"
+            placeholder="จำนวนเข้า"
+            aria-label="จำนวนเข้า ${productName}"
+          >
+        `;
+      }
+
+      html += '</div>';
+    }
+  );
+
+  html += '</div>';
+
+  box.innerHTML = html;
+  button.disabled = false;
+
+  const stockDateInput =
+    document.getElementById(
+      'directRestockDate'
+    );
+
+  if (stockDateInput) {
+    stockDateInput.onchange =
+      refreshAllDirectLotRows_;
+  }
 }
 
 function collectDirectRestockPayload_() {
   const branchId =
-    document.getElementById('directRestockBranch').value;
+    document.getElementById(
+      'directRestockBranch'
+    ).value;
 
   const stockDate =
-    document.getElementById('directRestockDate').value;
-
-  const items = [];
+    document.getElementById(
+      'directRestockDate'
+    ).value;
 
   const overallNote =
     String(
-      document.getElementById('directRestockOverallNote').value || ''
+      document.getElementById(
+        'directRestockOverallNote'
+      ).value || ''
     ).trim();
 
-  directRestockItems.forEach(function(item, index) {
-    const qty = Number(
-      document.getElementById('direct_qty_' + index).value || 0
-    );
+  const items = [];
 
-    if (qty > 0) {
-      items.push({
-        product_id: item.product_id,
-        qty: qty,
-        note: overallNote
-      });
+  directRestockItems.forEach(
+    function(item, productIndex) {
+      if (item.lot_required === true) {
+        const container =
+          document.getElementById(
+            'direct_lot_rows_' +
+            productIndex
+          );
+
+        if (!container) {
+          return;
+        }
+
+        container
+          .querySelectorAll(
+            '.direct-lot-entry'
+          )
+          .forEach(function(entry) {
+            const lotInput =
+              entry.querySelector(
+                '.direct-lot-no'
+              );
+
+            const qtyInput =
+              entry.querySelector(
+                '.direct-lot-qty'
+              );
+
+            const lotNo =
+              String(
+                lotInput
+                  ? lotInput.value
+                  : ''
+              )
+                .trim();
+
+            const qty =
+              Number(
+                qtyInput
+                  ? qtyInput.value
+                  : 0
+              );
+
+            if (qty <= 0 && !lotNo) {
+              return;
+            }
+
+            if (qty <= 0 && lotNo) {
+              throw new Error(
+                'กรุณากรอกจำนวนของ ' +
+                item.product_name +
+                ' Lot ' +
+                lotNo
+              );
+            }
+
+            if (
+              qty > 0 &&
+              !/^\d{4}$/.test(lotNo)
+            ) {
+              throw new Error(
+                'กรุณากรอก Lot No. 4 หลักของ ' +
+                item.product_name
+              );
+            }
+
+            if (!Number.isInteger(qty)) {
+              throw new Error(
+                'จำนวนสินค้าต้องเป็นจำนวนเต็ม: ' +
+                item.product_name
+              );
+            }
+
+            /*
+             * ตรวจ Lot ฝั่งหน้าเว็บหนึ่งครั้ง
+             * Backend จะตรวจซ้ำอีกครั้ง
+             */
+            parseDirectLotForDisplay_(
+              lotNo,
+              stockDate,
+              Number(
+                item.clearance_day || 0
+              )
+            );
+
+            items.push({
+              product_id:
+                item.product_id,
+              lot_no:
+                lotNo,
+              qty:
+                qty,
+              note:
+                overallNote
+            });
+          });
+
+      } else {
+        const qtyInput =
+          document.getElementById(
+            'direct_qty_' +
+            productIndex
+          );
+
+        const qty =
+          Number(
+            qtyInput
+              ? qtyInput.value
+              : 0
+          );
+
+        if (qty <= 0) {
+          return;
+        }
+
+        if (!Number.isInteger(qty)) {
+          throw new Error(
+            'จำนวนสินค้าต้องเป็นจำนวนเต็ม: ' +
+            item.product_name
+          );
+        }
+
+        items.push({
+          product_id:
+            item.product_id,
+          qty:
+            qty,
+          note:
+            overallNote
+        });
+      }
     }
-  });
+  );
 
   return {
-    lineUserId: lineUserId,
-    branch_id: branchId,
-    stock_date: stockDate,
-    client_request_id: directRestockClientRequestId,
-    items: items
+    lineUserId:
+      lineUserId,
+    branch_id:
+      branchId,
+    stock_date:
+      stockDate,
+    client_request_id:
+      directRestockClientRequestId,
+    items:
+      items
   };
 }
 
 async function previewDirectRestockFromLiff() {
   const button =
-    document.getElementById('directRestockPreviewBtn');
+    document.getElementById(
+      'directRestockPreviewBtn'
+    );
 
-  const payload = collectDirectRestockPayload_();
-
-  button.disabled = true;
-  button.textContent = 'กำลังตรวจสอบ...';
+  let payload;
 
   try {
-    const preview = await apiGet({
-      action: 'previewDirectRestock',
-      payload: JSON.stringify(payload)
-    });
+    payload =
+      collectDirectRestockPayload_();
+
+  } catch (err) {
+    alert(
+      err.message ||
+      String(err)
+    );
+    return;
+  }
+
+  if (!payload.branch_id) {
+    alert('กรุณาเลือกสาขา');
+    return;
+  }
+
+  if (!payload.stock_date) {
+    alert(
+      'กรุณาเลือกวันที่สินค้าเข้าสาขา'
+    );
+    return;
+  }
+
+  if (!payload.items.length) {
+    alert(
+      'กรุณากรอกจำนวนเติมอย่างน้อย 1 รายการ'
+    );
+    return;
+  }
+
+  button.disabled = true;
+  button.textContent =
+    'กำลังตรวจสอบ...';
+
+  try {
+    const preview =
+      await apiGet({
+        action:
+          'previewDirectRestock',
+        payload:
+          JSON.stringify(payload)
+      });
 
     if (!preview.ok) {
-      alert(preview.message || 'ตรวจสอบไม่สำเร็จ');
+      alert(
+        preview.message ||
+        'ตรวจสอบไม่สำเร็จ'
+      );
       return;
     }
 
     const itemText =
-      (preview.items || []).map(function(item) {
-        return (
-          item.product_name +
-          ': +' + item.qty +
-          ' (' + item.stock_before +
-          ' → ' + item.stock_after + ')'
-        );
-      }).join('\n');
+      (preview.items || [])
+        .map(function(item) {
+          let text =
+            item.product_name;
+
+          if (item.lot_no) {
+            text +=
+              '\nLot: ' +
+              item.lot_no;
+
+            text +=
+              '\nผลิต: ' +
+              item.production_date;
+
+            if (
+              item.clearance_start_date
+            ) {
+              text +=
+                '\nเริ่มราคาพิเศษ: ' +
+                item.clearance_start_date;
+            }
+          }
+
+          text +=
+            '\nจำนวน: +' +
+            item.qty;
+
+          text +=
+            '\nสต๊อกรวม: ' +
+            item.stock_before +
+            ' → ' +
+            item.stock_after;
+
+          return text;
+        })
+        .join('\n\n');
 
     const confirmText =
-      'สาขา: ' + preview.branch_name + '\n' +
-      'วันที่สินค้าเข้า: ' + preview.stock_date + '\n' +
-      'รวม: ' + preview.total_qty + ' ชิ้น\n\n' +
-      itemText + '\n\n' +
+      'สาขา: ' +
+      preview.branch_name +
+      '\n' +
+      'วันที่สินค้าเข้า: ' +
+      preview.stock_date +
+      '\n' +
+      'รวม: ' +
+      preview.total_qty +
+      ' ชิ้น\n\n' +
+      itemText +
+      '\n\n' +
       'ยืนยันแล้วสต๊อกจะเพิ่มทันที';
 
     if (!confirm(confirmText)) {
       return;
     }
 
-    button.textContent = 'กำลังบันทึก...';
+    button.textContent =
+      'กำลังบันทึก...';
 
-    const result = await apiGet({
-      action: 'submitDirectRestock',
-      payload: JSON.stringify(payload)
-    });
+    const result =
+      await apiGet({
+        action:
+          'submitDirectRestock',
+        payload:
+          JSON.stringify(payload)
+      });
 
     if (!result.ok) {
-      alert(result.message || 'บันทึกไม่สำเร็จ');
+      alert(
+        result.message ||
+        'บันทึกไม่สำเร็จ'
+      );
       return;
     }
 
     alert(
       'เติมสินค้าเรียบร้อย\n\n' +
-      'เลขที่: ' + result.delivery_id + '\n' +
-      'สาขา: ' + result.branch_id + '\n' +
-      'รวม: ' + result.total_qty + ' ชิ้น'
+      'เลขที่: ' +
+      result.delivery_id +
+      '\n' +
+      'สาขา: ' +
+      (
+        result.branch_name ||
+        result.branch_id
+      ) +
+      '\n' +
+      'รวม: ' +
+      result.total_qty +
+      ' ชิ้น\n' +
+      'รายการ Lot: ' +
+      Number(
+        result.lot_item_count || 0
+      )
     );
 
     directRestockClientRequestId =
@@ -4324,11 +4755,18 @@ async function previewDirectRestockFromLiff() {
     await loadDirectRestockItems();
 
   } catch (err) {
-    alert('บันทึกไม่สำเร็จ: ' + (err.message || err));
+    alert(
+      'บันทึกไม่สำเร็จ: ' +
+      (
+        err.message ||
+        err
+      )
+    );
 
   } finally {
     button.disabled = false;
-    button.textContent = 'ตรวจสอบก่อนบันทึก';
+    button.textContent =
+      'ตรวจสอบก่อนบันทึก';
   }
 }
 
@@ -7235,6 +7673,257 @@ async function produceFactoryOrder_() {
 
     
     main();
+
+    function parseDirectLotForDisplay_(
+  lotNo,
+  referenceDate,
+  clearanceDay
+) {
+  const cleanLotNo =
+    String(lotNo || '').trim();
+
+  if (!/^\d{4}$/.test(cleanLotNo)) {
+    throw new Error(
+      'Lot No. ต้องเป็นตัวเลข 4 หลัก'
+    );
+  }
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      String(referenceDate || '')
+    )
+  ) {
+    throw new Error(
+      'วันที่สินค้าเข้าไม่ถูกต้อง'
+    );
+  }
+
+  const yearDigit =
+    Number(cleanLotNo.charAt(0));
+
+  const weekNumber =
+    Number(cleanLotNo.slice(1, 3));
+
+  const weekdayNumber =
+    Number(cleanLotNo.charAt(3));
+
+  if (
+    weekNumber < 1 ||
+    weekNumber > 53
+  ) {
+    throw new Error(
+      'เลขสัปดาห์ต้องอยู่ระหว่าง 01-53'
+    );
+  }
+
+  if (
+    weekdayNumber < 1 ||
+    weekdayNumber > 5
+  ) {
+    throw new Error(
+      'เลขวันผลิตต้องอยู่ระหว่าง 1-5'
+    );
+  }
+
+  const referenceDateObj =
+    new Date(
+      referenceDate +
+      'T00:00:00Z'
+    );
+
+  const referenceYear =
+    referenceDateObj
+      .getUTCFullYear();
+
+  const baseDecade =
+    Math.floor(
+      referenceYear / 10
+    ) * 10;
+
+  const candidates = [
+    baseDecade - 10 + yearDigit,
+    baseDecade + yearDigit,
+    baseDecade + 10 + yearDigit
+  ];
+
+  candidates.sort(function(a, b) {
+    const diffA =
+      Math.abs(a - referenceYear);
+
+    const diffB =
+      Math.abs(b - referenceYear);
+
+    if (diffA !== diffB) {
+      return diffA - diffB;
+    }
+
+    return (
+      (a > referenceYear ? 1 : 0) -
+      (b > referenceYear ? 1 : 0)
+    );
+  });
+
+  const fullYear =
+    candidates[0];
+
+  const januaryFourth =
+    new Date(
+      Date.UTC(
+        fullYear,
+        0,
+        4
+      )
+    );
+
+  const januaryFourthWeekday =
+    januaryFourth.getUTCDay() || 7;
+
+  const weekOneMonday =
+    new Date(
+      januaryFourth.getTime()
+    );
+
+  weekOneMonday.setUTCDate(
+    januaryFourth.getUTCDate() -
+    januaryFourthWeekday +
+    1
+  );
+
+  const productionDateObj =
+    new Date(
+      weekOneMonday.getTime()
+    );
+
+  productionDateObj.setUTCDate(
+    weekOneMonday.getUTCDate() +
+    ((weekNumber - 1) * 7) +
+    (weekdayNumber - 1)
+  );
+
+  if (
+    productionDateObj.getTime() >
+    referenceDateObj.getTime()
+  ) {
+    throw new Error(
+      'วันผลิตจาก Lot อยู่หลังวันที่สินค้าเข้า'
+    );
+  }
+
+  const productionDate =
+    formatDirectLotDateKey_(
+      productionDateObj
+    );
+
+  let clearanceStartDate = '';
+
+  const cleanClearanceDay =
+    Number(clearanceDay || 0);
+
+  if (cleanClearanceDay > 0) {
+    const clearanceDateObj =
+      new Date(
+        productionDateObj.getTime()
+      );
+
+    clearanceDateObj.setUTCDate(
+      clearanceDateObj.getUTCDate() +
+      cleanClearanceDay -
+      1
+    );
+
+    clearanceStartDate =
+      formatDirectLotDateKey_(
+        clearanceDateObj
+      );
+  }
+
+  const weekdayNames = {
+    1: 'วันจันทร์',
+    2: 'วันอังคาร',
+    3: 'วันพุธ',
+    4: 'วันพฤหัสบดี',
+    5: 'วันศุกร์'
+  };
+
+  return {
+    lot_no:
+      cleanLotNo,
+    production_date:
+      productionDate,
+    clearance_start_date:
+      clearanceStartDate,
+    weekday_name_th:
+      weekdayNames[
+        weekdayNumber
+      ] || ''
+  };
+}
+
+
+function formatDirectLotDateKey_(
+  dateObj
+) {
+  return (
+    dateObj.getUTCFullYear() +
+    '-' +
+    String(
+      dateObj.getUTCMonth() + 1
+    ).padStart(2, '0') +
+    '-' +
+    String(
+      dateObj.getUTCDate()
+    ).padStart(2, '0')
+  );
+}
+
+
+function formatDirectLotDateThai_(
+  dateKey
+) {
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(
+      String(dateKey || '')
+    )
+  ) {
+    return dateKey || '-';
+  }
+
+  const parts =
+    dateKey.split('-');
+
+  const year =
+    Number(parts[0]) + 543;
+
+  const month =
+    Number(parts[1]);
+
+  const day =
+    Number(parts[2]);
+
+  const monthNames = [
+    '',
+    'ม.ค.',
+    'ก.พ.',
+    'มี.ค.',
+    'เม.ย.',
+    'พ.ค.',
+    'มิ.ย.',
+    'ก.ค.',
+    'ส.ค.',
+    'ก.ย.',
+    'ต.ค.',
+    'พ.ย.',
+    'ธ.ค.'
+  ];
+
+  return (
+    day +
+    ' ' +
+    monthNames[month] +
+    ' ' +
+    year
+  );
+}
   </script>
 </body>
 </html>
