@@ -3795,7 +3795,6 @@ async function openPreview() {
 }
 
 function renderPreviewModal(data) {
-
   let html = '';
 
   html += `
@@ -3819,11 +3818,44 @@ function renderPreviewModal(data) {
         color:#166534;
         margin-top:4px;
       ">
-        ${Number(data.totalAmount || 0)
-          .toLocaleString()} บาท
+        ${Number(
+          data.totalAmount || 0
+        ).toLocaleString('th-TH')}
+        บาท
       </div>
     </div>
   `;
+
+  /*
+   * แจ้งจำนวนน้ำมังคุดที่เข้าเงื่อนไขราคา 199
+   */
+  if (
+    Number(
+      data.clearanceEligibleQty || 0
+    ) > 0
+  ) {
+    html += `
+      <div style="
+        background:#fff7ed;
+        border:1px solid #fed7aa;
+        border-radius:12px;
+        padding:11px;
+        margin-bottom:14px;
+        color:#9a3412;
+        font-size:13px;
+        line-height:1.5;
+      ">
+        น้ำมังคุด Lot ใกล้หมดอายุที่ขายราคา
+        199 บาทได้:
+        <b>
+          ${Number(
+            data.clearanceEligibleQty || 0
+          ).toLocaleString('th-TH')}
+          ขวด
+        </b>
+      </div>
+    `;
+  }
 
   html += `
     <div style="
@@ -3834,75 +3866,195 @@ function renderPreviewModal(data) {
     </div>
   `;
 
-  data.summaryRows.forEach(row => {
+  (data.summaryRows || [])
+    .forEach(function(row) {
+      const movementType =
+        String(
+          row.movement_type || ''
+        )
+          .trim()
+          .toUpperCase();
 
-    html += `
-      <div style="
-        border:1px solid #e5e7eb;
-        border-radius:12px;
-        padding:10px;
-        margin-bottom:8px;
-      ">
+      const saleTypeId =
+        String(
+          row.sale_type_id || ''
+        )
+          .trim()
+          .toUpperCase();
+
+      const isClearance =
+        saleTypeId === 'MGT199';
+
+      const isNormalMangosteen =
+        String(row.product_id || '')
+          .trim()
+          .toUpperCase() === 'MGT' &&
+        saleTypeId === 'WN';
+
+      let borderColor =
+        '#e5e7eb';
+
+      let backgroundColor =
+        '#ffffff';
+
+      let labelColor =
+        '#475569';
+
+      if (isClearance) {
+        borderColor =
+          '#fdba74';
+
+        backgroundColor =
+          '#fff7ed';
+
+        labelColor =
+          '#c2410c';
+
+      } else if (
+        isNormalMangosteen
+      ) {
+        borderColor =
+          '#c4b5fd';
+
+        backgroundColor =
+          '#f5f3ff';
+
+        labelColor =
+          '#6d28d9';
+
+      } else if (
+        movementType === 'SA'
+      ) {
+        borderColor =
+          '#bbf7d0';
+
+        backgroundColor =
+          '#f0fdf4';
+
+        labelColor =
+          '#166534';
+      }
+
+      html += `
         <div style="
-          font-weight:bold;
+          border:1px solid ${borderColor};
+          background:${backgroundColor};
+          border-radius:12px;
+          padding:11px;
+          margin-bottom:8px;
         ">
-          ${row.product_name}
-        </div>
+          <div style="
+            font-weight:bold;
+            color:#111827;
+          ">
+            ${escapeHtml_(
+              row.product_name ||
+              row.product_id ||
+              '-'
+            )}
+          </div>
 
-        <div style="
-          font-size:12px;
-          color:#6b7280;
-          margin-top:4px;
-        ">
-          ${row.movement_type}
-        </div>
-    `;
-
-    if (row.qty_out > 0) {
-      html += `
-        <div>
-          ตัดสต๊อก:
-          ${row.qty_out}
-        </div>
+          <div style="
+            font-size:13px;
+            font-weight:bold;
+            color:${labelColor};
+            margin-top:4px;
+          ">
+            ${escapeHtml_(
+              row.movement_label ||
+              row.movement_type ||
+              '-'
+            )}
+          </div>
       `;
-    }
 
-    if (row.sold_qty > 0) {
-      html += `
-        <div>
-          ขาย:
-          ${row.sold_qty}
-        </div>
-      `;
-    }
+      if (
+        Number(row.qty_in || 0) > 0
+      ) {
+        html += `
+          <div style="margin-top:5px;">
+            เติม:
+            <b>
+              ${Number(
+                row.qty_in || 0
+              ).toLocaleString('th-TH')}
+            </b>
+          </div>
+        `;
+      }
 
-    if (row.free_qty > 0) {
-      html += `
-        <div>
-          แถม:
-          ${row.free_qty}
-        </div>
-      `;
-    }
+      if (
+        Number(row.sold_qty || 0) > 0
+      ) {
+        html += `
+          <div style="margin-top:5px;">
+            จำนวนขาย:
+            <b>
+              ${Number(
+                row.sold_qty || 0
+              ).toLocaleString('th-TH')}
+              ขวด
+            </b>
+          </div>
+        `;
+      }
 
-    if (row.amount > 0) {
-      html += `
-        <div style="
-          margin-top:6px;
-          font-weight:bold;
-          color:#166534;
-        ">
-          ${Number(row.amount)
-            .toLocaleString()}
-          บาท
-        </div>
-      `;
-    }
+      if (
+        Number(row.free_qty || 0) > 0
+      ) {
+        html += `
+          <div style="margin-top:5px;">
+            จำนวนแถม:
+            <b>
+              ${Number(
+                row.free_qty || 0
+              ).toLocaleString('th-TH')}
+              ขวด
+            </b>
+          </div>
+        `;
+      }
 
-    html += `
-      </div>
-    `;
-  });
+      if (
+        Number(row.qty_out || 0) > 0 &&
+        Number(row.sold_qty || 0) <= 0 &&
+        Number(row.free_qty || 0) <= 0
+      ) {
+        html += `
+          <div style="margin-top:5px;">
+            ตัดสต๊อค:
+            <b>
+              ${Number(
+                row.qty_out || 0
+              ).toLocaleString('th-TH')}
+              ขวด
+            </b>
+          </div>
+        `;
+      }
+
+      if (
+        Number(row.amount || 0) > 0
+      ) {
+        html += `
+          <div style="
+            margin-top:7px;
+            padding-top:7px;
+            border-top:1px solid ${borderColor};
+            font-weight:bold;
+            color:${labelColor};
+          ">
+            รวม
+            ${Number(
+              row.amount || 0
+            ).toLocaleString('th-TH')}
+            บาท
+          </div>
+        `;
+      }
+
+      html += '</div>';
+    });
 
   html += `
     <div style="
@@ -3910,36 +4062,51 @@ function renderPreviewModal(data) {
       margin-bottom:8px;
       font-weight:bold;
     ">
-      สต๊อกคงเหลือหลังบันทึก
+      สต๊อคคงเหลือหลังบันทึก
     </div>
   `;
 
-  data.stockRows.forEach(row => {
+  (data.stockRows || [])
+    .forEach(function(row) {
+      const stockAfter =
+        Number(
+          row.stock_after || 0
+        );
 
-    const isLow =
-      Number(row.stock_after || 0) <= 3;
+      const isLow =
+        stockAfter <= 3;
 
-    html += `
-      <div style="
-        display:flex;
-        justify-content:space-between;
-        padding:8px 0;
-        border-bottom:1px solid #f3f4f6;
-      ">
-        <div>
-          ${row.product_name}
-        </div>
-
+      html += `
         <div style="
-          font-weight:bold;
-          color:${isLow ? '#dc2626' : '#111827'};
+          display:flex;
+          justify-content:space-between;
+          gap:12px;
+          padding:8px 0;
+          border-bottom:1px solid #f3f4f6;
         ">
-          ${Number(row.stock_after || 0)
-            .toLocaleString()}
+          <div>
+            ${escapeHtml_(
+              row.product_name ||
+              row.product_id ||
+              '-'
+            )}
+          </div>
+
+          <div style="
+            font-weight:bold;
+            color:${
+              isLow
+                ? '#dc2626'
+                : '#111827'
+            };
+          ">
+            ${stockAfter.toLocaleString(
+              'th-TH'
+            )}
+          </div>
         </div>
-      </div>
-    `;
-  });
+      `;
+    });
 
   document.getElementById(
     'summaryText'
