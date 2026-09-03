@@ -4462,19 +4462,30 @@ async function loadDirectRestockItems() {
 
   box.innerHTML = 'กำลังโหลดสินค้า...';
 
-  const data = await apiGet({
-    action: 'directRestockData',
-    lineUserId: lineUserId,
-    branchId: branchId
-  });
+  try {
+    const data = await apiGet({
+      action: 'directRestockData',
+      lineUserId: lineUserId,
+      branchId: branchId,
+      _: Date.now()
+    });
 
-  if (!data.ok) {
-    box.innerHTML = data.message || 'โหลดสินค้าไม่สำเร็จ';
-    return;
+    if (!data.ok) {
+      throw new Error(data.message || 'โหลดสินค้าไม่สำเร็จ');
+    }
+
+    directRestockItems = data.items || [];
+    renderDirectRestockItems_();
+
+  } catch (err) {
+    directRestockItems = [];
+    button.disabled = true;
+    box.innerHTML =
+      '<div style="color:#b91c1c;font-weight:bold;">โหลดสินค้าไม่สำเร็จ</div>' +
+      '<div class="small" style="margin-top:6px;">' +
+      escapeHtml_(err && err.message ? err.message : String(err)) +
+      '</div>';
   }
-
-  directRestockItems = data.items || [];
-  renderDirectRestockItems_();
 }
 
 function renderDirectRestockItems_() {
@@ -4587,6 +4598,12 @@ function renderDirectRestockItems_() {
   box.innerHTML = html;
   button.disabled = false;
 
+  document
+    .querySelectorAll('.direct-lot-rows')
+    .forEach(function(container) {
+      refreshDirectLotRemoveButtons_(container);
+    });
+
   const stockDateInput =
     document.getElementById(
       'directRestockDate'
@@ -4596,6 +4613,154 @@ function renderDirectRestockItems_() {
     stockDateInput.onchange =
       refreshAllDirectLotRows_;
   }
+}
+
+function buildDirectLotRowHtml_(productIndex, rowNumber) {
+  const item = directRestockItems[productIndex] || {};
+  const safeName = escapeHtml_(item.product_name || item.product_id || 'สินค้า');
+
+  return `
+    <div class="direct-lot-entry"
+      data-product-index="${productIndex}"
+      style="border:1px solid #fed7aa;border-radius:10px;padding:10px;margin-bottom:8px;background:#fff;">
+      <div class="small" style="font-weight:bold;margin-bottom:6px;">
+        ${safeName} — Lot ${rowNumber}
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+        <input class="direct-lot-no"
+          type="text"
+          inputmode="numeric"
+          maxlength="4"
+          placeholder="Lot No. 4 หลัก"
+          oninput="updateDirectLotRowPreview_(this)">
+
+        <input class="direct-lot-qty"
+          type="number"
+          min="0"
+          step="1"
+          inputmode="numeric"
+          placeholder="จำนวนเข้า">
+      </div>
+
+      <div class="direct-lot-preview small"
+        style="margin-top:6px;color:#9a3412;">
+        รอกรอก Lot No.
+      </div>
+
+      <button type="button"
+        class="secondary direct-lot-remove"
+        style="margin-top:7px;padding:6px 9px;font-size:12px;"
+        onclick="removeDirectLotRow_(this)">
+        ลบ Lot แถวนี้
+      </button>
+    </div>
+  `;
+}
+
+function addDirectLotRow_(productIndex) {
+  const container = document.getElementById('direct_lot_rows_' + productIndex);
+  if (!container) return;
+
+  const rowNumber = container.querySelectorAll('.direct-lot-entry').length + 1;
+  container.insertAdjacentHTML(
+    'beforeend',
+    buildDirectLotRowHtml_(productIndex, rowNumber)
+  );
+  refreshDirectLotRemoveButtons_(container);
+}
+
+function removeDirectLotRow_(button) {
+  const entry = button ? button.closest('.direct-lot-entry') : null;
+  const container = entry ? entry.parentElement : null;
+  if (!entry || !container) return;
+
+  const entries = container.querySelectorAll('.direct-lot-entry');
+  if (entries.length <= 1) {
+    const lotInput = entry.querySelector('.direct-lot-no');
+    const qtyInput = entry.querySelector('.direct-lot-qty');
+    if (lotInput) lotInput.value = '';
+    if (qtyInput) qtyInput.value = '';
+    updateDirectLotRowPreview_(lotInput);
+    return;
+  }
+
+  entry.remove();
+  refreshDirectLotRemoveButtons_(container);
+}
+
+function refreshDirectLotRemoveButtons_(container) {
+  if (!container) return;
+  const entries = container.querySelectorAll('.direct-lot-entry');
+
+  entries.forEach(function(entry, index) {
+    const title = entry.querySelector('.small');
+    const productIndex = Number(entry.dataset.productIndex || 0);
+    const item = directRestockItems[productIndex] || {};
+    if (title) {
+      title.textContent =
+        (item.product_name || item.product_id || 'สินค้า') +
+        ' — Lot ' + (index + 1);
+    }
+
+    const removeButton = entry.querySelector('.direct-lot-remove');
+    if (removeButton) {
+      removeButton.style.display = entries.length > 1 ? 'inline-block' : 'none';
+    }
+  });
+}
+
+function updateDirectLotRowPreview_(inputElement) {
+  const entry = inputElement ? inputElement.closest('.direct-lot-entry') : null;
+  if (!entry) return;
+
+  const preview = entry.querySelector('.direct-lot-preview');
+  const lotInput = entry.querySelector('.direct-lot-no');
+  const productIndex = Number(entry.dataset.productIndex || 0);
+  const item = directRestockItems[productIndex] || {};
+  const lotNo = String(lotInput ? lotInput.value : '').replace(/\D/g, '').slice(0, 4);
+  if (lotInput && lotInput.value !== lotNo) lotInput.value = lotNo;
+
+  if (!preview) return;
+  if (!lotNo) {
+    preview.textContent = 'รอกรอก Lot No.';
+    return;
+  }
+  if (lotNo.length !== 4) {
+    preview.textContent = 'Lot No. ต้องครบ 4 หลัก';
+    return;
+  }
+
+  const dateInput = document.getElementById('directRestockDate');
+
+  try {
+    const parsed = parseDirectLotForDisplay_(
+      lotNo,
+      dateInput ? dateInput.value : '',
+      Number(item.clearance_day || 0)
+    );
+
+    let text =
+      'ผลิต ' + parsed.weekday_name_th + ' ' +
+      formatDirectLotDateThai_(parsed.production_date);
+
+    if (parsed.clearance_start_date) {
+      text += ' • เริ่มราคาใกล้หมดอายุ ' +
+        formatDirectLotDateThai_(parsed.clearance_start_date);
+    }
+
+    preview.textContent = text;
+    preview.style.color = '#166534';
+  } catch (err) {
+    preview.textContent = err.message || String(err);
+    preview.style.color = '#b91c1c';
+  }
+}
+
+function refreshAllDirectLotRows_() {
+  document.querySelectorAll('.direct-lot-entry').forEach(function(entry) {
+    updateDirectLotRowPreview_(entry.querySelector('.direct-lot-no'));
+  });
 }
 
 function collectDirectRestockPayload_() {
