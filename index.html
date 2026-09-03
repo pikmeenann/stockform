@@ -832,17 +832,43 @@ function getStockQty(productId) {
 }
     
 function renderWaterRows() {
-
   const container =
-    document.getElementById('waterRows');
+    document.getElementById(
+      'waterRows'
+    );
 
   container.innerHTML = '';
 
   getProductsByCategory('WATER')
-    .forEach(p => {
+    .forEach(function(product) {
+      const productId =
+        String(
+          product.product_id || ''
+        )
+          .trim()
+          .toUpperCase();
+
+      const productName =
+        escapeHtml_(
+          product.product_name ||
+          productId
+        );
 
       const stock =
-        getStockQty(p.product_id);
+        getStockQty(productId);
+
+      const basePrice =
+        Number(
+          product.base_price || 0
+        );
+
+      const clearancePrice =
+        Number(
+          product.clearance_price || 0
+        );
+
+      const isMangosteen =
+        productId === 'MGT';
 
       const row =
         document.createElement('div');
@@ -850,78 +876,182 @@ function renderWaterRows() {
       row.className =
         'mobile-sale-card';
 
+      let inputHtml = '';
+
+      if (isMangosteen) {
+        inputHtml = `
+          <div style="
+            margin-top:8px;
+            margin-bottom:10px;
+            padding:9px 10px;
+            border-radius:10px;
+            background:#fff7ed;
+            color:#9a3412;
+            font-size:12px;
+            line-height:1.5;
+          ">
+            ไม่ร่วมโปรโมชั่น • ราคา
+            ${clearancePrice.toLocaleString('th-TH')}
+            บาท ใช้ได้เฉพาะ Lot ที่ถึงวันที่ 4
+          </div>
+
+          <div class="mobile-input-grid">
+            <label>
+              ขาย ${basePrice.toLocaleString('th-TH')}
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                class="qty"
+                value=""
+                data-product-id="${productId}"
+                data-category="${product.category}"
+                data-field="saleNormal"
+                placeholder="0"
+              />
+            </label>
+
+            <label>
+              ใกล้หมดอายุ
+              ${clearancePrice.toLocaleString('th-TH')}
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                class="qty"
+                value=""
+                data-product-id="${productId}"
+                data-category="${product.category}"
+                data-field="saleClearance"
+                placeholder="0"
+              />
+            </label>
+
+            <label>
+              เสีย
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                class="qty"
+                value=""
+                data-product-id="${productId}"
+                data-category="${product.category}"
+                data-field="damagedQty"
+                placeholder="0"
+              />
+            </label>
+
+            <label>
+              ชิม
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                class="qty"
+                value=""
+                data-product-id="${productId}"
+                data-category="${product.category}"
+                data-field="tastingQty"
+                placeholder="0"
+              />
+            </label>
+          </div>
+        `;
+
+      } else {
+        inputHtml = `
+          <div class="mobile-input-grid">
+            <label>
+              ขาย
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                class="qty"
+                value=""
+                data-product-id="${productId}"
+                data-category="${product.category}"
+                data-field="saleNormal"
+                placeholder="0"
+              />
+            </label>
+
+            <label>
+              แถม
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                class="qty"
+                value=""
+                data-product-id="${productId}"
+                data-category="${product.category}"
+                data-field="freeQty"
+                placeholder="0"
+              />
+            </label>
+
+            <label>
+              เสีย
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                class="qty"
+                value=""
+                data-product-id="${productId}"
+                data-category="${product.category}"
+                data-field="damagedQty"
+                placeholder="0"
+              />
+            </label>
+
+            <label>
+              ชิม
+              <input
+                type="number"
+                min="0"
+                step="1"
+                inputmode="numeric"
+                class="qty"
+                value=""
+                data-product-id="${productId}"
+                data-category="${product.category}"
+                data-field="tastingQty"
+                placeholder="0"
+              />
+            </label>
+          </div>
+        `;
+      }
+
       row.innerHTML = `
         <div class="mobile-sale-head">
           <div>
             <div class="mobile-product-name">
-              ${p.product_name}
+              ${productName}
             </div>
 
             <span class="mobile-product-code">
-              ${p.product_id}
-              / ${Number(p.base_price || 0).toLocaleString()} บาท
-              • คงเหลือ ${stock}
+              ${productId}
+              /
+              ${basePrice.toLocaleString('th-TH')}
+              บาท
+              • คงเหลือ
+              ${Number(stock).toLocaleString('th-TH')}
             </span>
           </div>
         </div>
 
-        <div class="mobile-input-grid">
-          <label>
-            ขาย
-            <input
-              type="number"
-              min="0"
-              class="qty"
-              value=""
-              data-product-id="${p.product_id}"
-              data-category="${p.category}"
-              data-field="saleNormal"
-              placeholder="0"
-            />
-          </label>
-
-          <label>
-            แถม
-            <input
-              type="number"
-              min="0"
-              class="qty"
-              value=""
-              data-product-id="${p.product_id}"
-              data-category="${p.category}"
-              data-field="freeQty"
-              placeholder="0"
-            />
-          </label>
-
-          <label>
-            เสีย
-            <input
-              type="number"
-              min="0"
-              class="qty"
-              value=""
-              data-product-id="${p.product_id}"
-              data-category="${p.category}"
-              data-field="damagedQty"
-              placeholder="0"
-            />
-          </label>
-
-          <label>
-            ชิม
-            <input
-              type="number"
-              min="0"
-              class="qty"
-              value=""
-              data-product-id="${p.product_id}"
-              data-category="${p.category}"
-              data-field="tastingQty"
-              placeholder="0"
-            />
-          </label>
-        </div>
+        ${inputHtml}
       `;
 
       container.appendChild(row);
