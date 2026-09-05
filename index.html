@@ -8161,22 +8161,22 @@ async function produceFactoryOrder_() {
     Number(clearanceDay || 0);
 
   if (cleanClearanceDay > 0) {
-    const clearanceDateObj =
-      new Date(
-        productionDateObj.getTime()
-      );
-
-    clearanceDateObj.setUTCDate(
-      clearanceDateObj.getUTCDate() +
-      cleanClearanceDay -
-      1
+  const clearanceDateObj =
+    new Date(
+      referenceDate + 'T00:00:00Z'
     );
 
-    clearanceStartDate =
-      formatDirectLotDateKey_(
-        clearanceDateObj
-      );
-  }
+  clearanceDateObj.setUTCDate(
+    clearanceDateObj.getUTCDate() +
+    cleanClearanceDay -
+    1
+  );
+
+  clearanceStartDate =
+    formatDirectLotDateKey_(
+      clearanceDateObj
+    );
+}
 
   const weekdayNames = {
     1: 'วันจันทร์',
