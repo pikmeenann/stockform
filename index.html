@@ -4136,46 +4136,121 @@ async function submitConfirmed() {
       btn.textContent = 'กำลังบันทึก...';
     }
 
+    /*
+     * สร้าง requestId เพียงครั้งเดียว
+     * สำหรับการบันทึกชุดนี้
+     *
+     * ถ้าเน็ตค้างแล้วพนักงานกดใหม่
+     * จะยังใช้ requestId เดิม
+     */
+    if (!pendingPayload.requestId) {
+      pendingPayload.requestId =
+        'REQ_' +
+        Date.now() +
+        '_' +
+        Math.random()
+          .toString(36)
+          .slice(2, 10)
+          .toUpperCase();
+    }
+
     const data = await apiGet({
       action: 'submitBulkV2',
-      payload: JSON.stringify(pendingPayload)
+      payload: JSON.stringify(
+        pendingPayload
+      )
     });
 
     if (!data.ok) {
-      alert(data.message || 'บันทึกไม่สำเร็จ');
+      alert(
+        data.message ||
+        'บันทึกไม่สำเร็จ'
+      );
       return;
     }
 
+    /*
+     * เก็บข้อมูลไว้ก่อน
+     * เพราะหลังจากนี้จะ clear form
+     */
+    const savedBranch =
+      (appData.branches || [])
+        .find(function(branch) {
+          return (
+            String(
+              branch.branch_id || ''
+            )
+              .trim()
+              .toUpperCase() ===
+            String(
+              pendingPayload.branchId || ''
+            )
+              .trim()
+              .toUpperCase()
+          );
+        });
+
+    const savedBranchName =
+      savedBranch
+        ? (
+            savedBranch.branch_name ||
+            savedBranch.branch_id
+          )
+        : pendingPayload.branchId;
+
+    const savedDate =
+      formatThaiDateKey_(
+        pendingPayload.entryDate
+      );
+
+    const recorderName =
+      (
+        appData.user &&
+        appData.user.name
+      )
+        ? appData.user.name
+        : (
+            document
+              .getElementById(
+                'recorderName'
+              )
+              .value ||
+            '-'
+          );
+
     closePreview();
 
-    const savedBranch =
-  (appData.branches || []).find(function(branch) {
-    return String(branch.branch_id || '').trim().toUpperCase() ===
-      String(pendingPayload.branchId || '').trim().toUpperCase();
-  });
+    let successMessage =
+      'บันทึกเรียบร้อย';
 
-const savedBranchName =
-  savedBranch
-    ? (savedBranch.branch_name || savedBranch.branch_id)
-    : pendingPayload.branchId;
+    /*
+     * ถ้า backend พบ request เดิม
+     * ให้พนักงานทราบว่าไม่ได้บันทึกซ้ำ
+     */
+    if (data.duplicate_request) {
+      successMessage =
+        'รายการนี้ถูกบันทึกไว้แล้ว\n' +
+        'ระบบไม่ได้บันทึกซ้ำ';
+    }
 
-const savedDate =
-  formatThaiDateKey_(pendingPayload.entryDate);
-
-const recorderName =
-  (appData.user && appData.user.name)
-    ? appData.user.name
-    : document.getElementById('recorderName').value || '-';
-
-alert(
-  'บันทึกเรียบร้อย\n\n' +
-  'สาขา: ' + savedBranchName + '\n' +
-  'วันที่ยอดขาย: ' + savedDate + '\n' +
-  'ผู้บันทึก: ' + recorderName + '\n' +
-  'ยอดขายรวม: ' +
-  Number(data.totalAmount || 0).toLocaleString('th-TH') +
-  ' บาท'
-);
+    alert(
+      successMessage +
+      '\n\n' +
+      'สาขา: ' +
+      savedBranchName +
+      '\n' +
+      'วันที่ยอดขาย: ' +
+      savedDate +
+      '\n' +
+      'ผู้บันทึก: ' +
+      recorderName +
+      '\n' +
+      'ยอดขายรวม: ' +
+      Number(
+        data.totalAmount || 0
+      ).toLocaleString('th-TH') +
+      ' บาท'
+    );
 
     clearForm();
 
@@ -4191,7 +4266,8 @@ alert(
 
     if (btn) {
       btn.disabled = false;
-      btn.textContent = 'ยืนยันบันทึก';
+      btn.textContent =
+        'ยืนยันบันทึก';
     }
   }
 }
