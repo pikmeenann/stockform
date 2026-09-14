@@ -4447,15 +4447,19 @@ async function renderDirectRestockPage() {
       .trim()
       .toLowerCase();
 
-  if (!['factory', 'owner'].includes(role)) {
+  if (
+    !['factory', 'owner'].includes(role)
+  ) {
     document.body.innerHTML = `
       <div class="card">
         <h1>ไม่มีสิทธิ์</h1>
+
         <div class="status">
           หน้าเติมสินค้าเข้าสาขาใช้ได้เฉพาะโรงงานหรือ Owner
         </div>
       </div>
     `;
+
     return;
   }
 
@@ -4467,31 +4471,102 @@ async function renderDirectRestockPage() {
       <h1>เติมสินค้าเข้าสาขา</h1>
 
       <div class="small">
-        ผู้บันทึก: ${appData.user.name || '-'}
+        ผู้บันทึก:
+        ${appData.user.name || '-'}
       </div>
 
       <label>สาขาที่สินค้าเข้า</label>
-      <select id="directRestockBranch"
-        onchange="loadDirectRestockItems()">
-        <option value="">เลือกสาขา</option>
+
+      <select
+        id="directRestockBranch"
+        onchange="loadDirectRestockItems()"
+      >
+        <option value="">
+          เลือกสาขา
+        </option>
       </select>
 
-      <label>วันที่สินค้าเข้าสาขา</label>
-      <input id="directRestockDate" type="date">
+      <label>
+        วันที่สินค้าเข้าสาขา
+      </label>
 
-      <div id="directRestockItemsBox"
-        class="status" style="margin-top:12px;">
+      <input
+        id="directRestockDate"
+        type="date"
+      >
+
+      <div
+        style="
+          margin-top:12px;
+          padding:12px;
+          border-radius:12px;
+          background:#eff6ff;
+          border:1px solid #bfdbfe;
+        "
+      >
+        <label
+          style="
+            margin-top:0;
+            color:#1e3a8a;
+            font-weight:bold;
+          "
+        >
+          Lot น้ำผลไม้ประจำรอบ
+        </label>
+
+        <input
+          id="directSharedJuiceLot"
+          type="text"
+          inputmode="numeric"
+          maxlength="4"
+          placeholder="เช่น 6376"
+          oninput="applySharedJuiceLot_(this)"
+        >
+
+        <div
+          class="small"
+          style="
+            margin-top:6px;
+            color:#1d4ed8;
+          "
+        >
+          กรอกครั้งเดียว ระบบจะใช้กับน้ำผลไม้
+          ทุกรายการในรอบนี้
+        </div>
+
+        <div
+          class="small"
+          style="
+            margin-top:4px;
+            color:#92400e;
+          "
+        >
+          น้ำมังคุดให้กรอก Lot แยกในรายการของน้ำมังคุด
+        </div>
+      </div>
+
+      <div
+        id="directRestockItemsBox"
+        class="status"
+        style="margin-top:12px;"
+      >
         กรุณาเลือกสาขา
       </div>
 
       <label>หมายเหตุรวม</label>
-      <input id="directRestockOverallNote"
-        type="text" placeholder="ถ้ามี">
+
+      <input
+        id="directRestockOverallNote"
+        type="text"
+        placeholder="ถ้ามี"
+      >
 
       <div class="direct-restock-sticky">
-        <button id="directRestockPreviewBtn"
+        <button
+          id="directRestockPreviewBtn"
           onclick="previewDirectRestockFromLiff()"
-          disabled>
+          disabled
+        >
           ตรวจสอบก่อนบันทึก
         </button>
       </div>
@@ -4499,23 +4574,121 @@ async function renderDirectRestockPage() {
   `;
 
   const branchSelect =
-    document.getElementById('directRestockBranch');
+    document.getElementById(
+      'directRestockBranch'
+    );
 
-  (appData.branches || []).forEach(function(branch) {
-    const option = document.createElement('option');
-    option.value = branch.branch_id;
-    option.textContent =
-      branch.branch_name || branch.branch_id;
-    branchSelect.appendChild(option);
-  });
+  (appData.branches || [])
+    .forEach(function(branch) {
+      const option =
+        document.createElement('option');
 
-  const today = new Date();
-  const yyyy = today.getFullYear();
-  const mm = String(today.getMonth() + 1).padStart(2, '0');
-  const dd = String(today.getDate()).padStart(2, '0');
+      option.value =
+        branch.branch_id;
 
-  document.getElementById('directRestockDate').value =
-    yyyy + '-' + mm + '-' + dd;
+      option.textContent =
+        branch.branch_name ||
+        branch.branch_id;
+
+      branchSelect.appendChild(
+        option
+      );
+    });
+
+  const today =
+    new Date();
+
+  const yyyy =
+    today.getFullYear();
+
+  const mm =
+    String(
+      today.getMonth() + 1
+    ).padStart(2, '0');
+
+  const dd =
+    String(
+      today.getDate()
+    ).padStart(2, '0');
+
+  document.getElementById(
+    'directRestockDate'
+  ).value =
+    yyyy +
+    '-' +
+    mm +
+    '-' +
+    dd;
+}
+
+function applySharedJuiceLot_(
+  inputElement
+) {
+  if (!inputElement) {
+    return;
+  }
+
+  const lotNo =
+    String(
+      inputElement.value || ''
+    )
+      .replace(/\D/g, '')
+      .slice(0, 4);
+
+  inputElement.value =
+    lotNo;
+
+  /*
+   * กระจาย Lot น้ำผลไม้ไปยังแถว Lot
+   * ที่ไม่ใช่น้ำมังคุด
+   */
+  document
+    .querySelectorAll(
+      '.direct-lot-entry'
+    )
+    .forEach(function(entry) {
+      const productIndex =
+        Number(
+          entry.dataset.productIndex || 0
+        );
+
+      const item =
+        directRestockItems[
+          productIndex
+        ] || {};
+
+      const productId =
+        String(
+          item.product_id || ''
+        )
+          .trim()
+          .toUpperCase();
+
+      /*
+       * MGT ต้องกรอก Lot แยก
+       */
+      if (
+        productId === 'MGT'
+      ) {
+        return;
+      }
+
+      const lotInput =
+        entry.querySelector(
+          '.direct-lot-no'
+        );
+
+      if (!lotInput) {
+        return;
+      }
+
+      lotInput.value =
+        lotNo;
+
+      updateDirectLotRowPreview_(
+        lotInput
+      );
+    });
 }
 
 async function loadDirectRestockItems() {
