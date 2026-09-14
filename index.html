@@ -4692,48 +4692,117 @@ function applySharedJuiceLot_(
 }
 
 async function loadDirectRestockItems() {
+  const branchSelect =
+    document.getElementById(
+      'directRestockBranch'
+    );
+
   const branchId =
-    document.getElementById('directRestockBranch').value;
+    branchSelect
+      ? branchSelect.value
+      : '';
 
   const box =
-    document.getElementById('directRestockItemsBox');
+    document.getElementById(
+      'directRestockItemsBox'
+    );
 
   const button =
-    document.getElementById('directRestockPreviewBtn');
+    document.getElementById(
+      'directRestockPreviewBtn'
+    );
 
-  directRestockItems = [];
-  button.disabled = true;
+  directRestockItems =
+    [];
+
+  if (button) {
+    button.disabled =
+      true;
+  }
 
   if (!branchId) {
-    box.innerHTML = 'กรุณาเลือกสาขา';
+    if (box) {
+      box.innerHTML =
+        'กรุณาเลือกสาขา';
+    }
+
     return;
   }
 
-  box.innerHTML = 'กำลังโหลดสินค้า...';
+  if (box) {
+    box.innerHTML =
+      'กำลังโหลดสินค้า...';
+  }
 
   try {
-    const data = await apiGet({
-      action: 'directRestockData',
-      lineUserId: lineUserId,
-      branchId: branchId,
-      _: Date.now()
-    });
+    const data =
+      await apiGet({
+        action:
+          'directRestockData',
+
+        lineUserId:
+          lineUserId,
+
+        branchId:
+          branchId,
+
+        _:
+          Date.now()
+      });
 
     if (!data.ok) {
-      throw new Error(data.message || 'โหลดสินค้าไม่สำเร็จ');
+      throw new Error(
+        data.message ||
+        'โหลดสินค้าไม่สำเร็จ'
+      );
     }
 
-    directRestockItems = data.items || [];
+    directRestockItems =
+      data.items || [];
+
     renderDirectRestockItems_();
 
+    /*
+     * ถ้ามีการกรอก Lot น้ำผลไม้ไว้แล้ว
+     * ให้กระจายค่าไปยังรายการที่เพิ่งโหลด
+     */
+    const sharedLotInput =
+      document.getElementById(
+        'directSharedJuiceLot'
+      );
+
+    if (
+      sharedLotInput &&
+      sharedLotInput.value
+    ) {
+      applySharedJuiceLot_(
+        sharedLotInput
+      );
+    }
+
   } catch (err) {
-    directRestockItems = [];
-    button.disabled = true;
-    box.innerHTML =
-      '<div style="color:#b91c1c;font-weight:bold;">โหลดสินค้าไม่สำเร็จ</div>' +
-      '<div class="small" style="margin-top:6px;">' +
-      escapeHtml_(err && err.message ? err.message : String(err)) +
-      '</div>';
+    directRestockItems =
+      [];
+
+    if (button) {
+      button.disabled =
+        true;
+    }
+
+    if (box) {
+      box.innerHTML =
+        '<div style="color:#b91c1c;font-weight:bold;">' +
+        'โหลดสินค้าไม่สำเร็จ' +
+        '</div>' +
+
+        '<div class="small" style="margin-top:6px;">' +
+        escapeHtml_(
+          err && err.message
+            ? err.message
+            : String(err)
+        ) +
+        '</div>';
+    }
   }
 }
 
@@ -5197,29 +5266,62 @@ async function previewDirectRestockFromLiff() {
       err.message ||
       String(err)
     );
+
     return;
   }
 
-  if (!payload.branch_id) {
-    alert('กรุณาเลือกสาขา');
+  if (
+    !payload.branch_id
+  ) {
+    alert(
+      'กรุณาเลือกสาขา'
+    );
+
     return;
   }
 
-  if (!payload.stock_date) {
+  if (
+    !payload.stock_date
+  ) {
     alert(
       'กรุณาเลือกวันที่สินค้าเข้าสาขา'
     );
+
     return;
   }
 
-  if (!payload.items.length) {
+  if (
+    !payload.items ||
+    !payload.items.length
+  ) {
     alert(
       'กรุณากรอกจำนวนเติมอย่างน้อย 1 รายการ'
     );
+
     return;
   }
 
-  button.disabled = true;
+  const today =
+    new Date();
+
+  const todayKey =
+    today.getFullYear() +
+    '-' +
+    String(
+      today.getMonth() + 1
+    ).padStart(2, '0') +
+    '-' +
+    String(
+      today.getDate()
+    ).padStart(2, '0');
+
+  const isFuture =
+    String(payload.stock_date) >
+    String(todayKey);
+
+  button.disabled =
+    true;
+
   button.textContent =
     'กำลังตรวจสอบ...';
 
@@ -5228,15 +5330,19 @@ async function previewDirectRestockFromLiff() {
       await apiGet({
         action:
           'previewDirectRestock',
+
         payload:
           JSON.stringify(payload)
       });
 
-    if (!preview.ok) {
+    if (
+      !preview.ok
+    ) {
       alert(
         preview.message ||
         'ตรวจสอบไม่สำเร็จ'
       );
+
       return;
     }
 
@@ -5246,14 +5352,20 @@ async function previewDirectRestockFromLiff() {
           let text =
             item.product_name;
 
-          if (item.lot_no) {
+          if (
+            item.lot_no
+          ) {
             text +=
               '\nLot: ' +
               item.lot_no;
 
-            text +=
-              '\nผลิต: ' +
-              item.production_date;
+            if (
+              item.production_date
+            ) {
+              text +=
+                '\nผลิต: ' +
+                item.production_date;
+            }
 
             if (
               item.clearance_start_date
@@ -5268,17 +5380,24 @@ async function previewDirectRestockFromLiff() {
             '\nจำนวน: +' +
             item.qty;
 
-          text +=
-            '\nสต๊อกรวม: ' +
-            item.stock_before +
-            ' → ' +
-            item.stock_after;
+          if (
+            isFuture
+          ) {
+            text +=
+              '\nสต๊อคปัจจุบัน: ' +
+              item.stock_before;
+
+          } else {
+            text +=
+              '\nสต๊อกรวมหลังเติม: ' +
+              item.stock_after;
+          }
 
           return text;
         })
         .join('\n\n');
 
-    const confirmText =
+    let confirmText =
       'สาขา: ' +
       preview.branch_name +
       '\n' +
@@ -5288,11 +5407,26 @@ async function previewDirectRestockFromLiff() {
       'รวม: ' +
       preview.total_qty +
       ' ชิ้น\n\n' +
-      itemText +
-      '\n\n' +
-      'ยืนยันแล้วสต๊อกจะเพิ่มทันที';
+      itemText;
 
-    if (!confirm(confirmText)) {
+    if (
+      isFuture
+    ) {
+      confirmText +=
+        '\n\n📅 รายการนี้เป็นการเติมล่วงหน้า' +
+        '\nวันนี้สต๊อคยังไม่เพิ่ม' +
+        '\nระบบจะเพิ่มสต๊อคอัตโนมัติเมื่อถึงวันที่ ' +
+        preview.stock_date +
+        '\n\nยืนยันบันทึกแผนเติมล่วงหน้าหรือไม่?';
+    } else {
+      confirmText +=
+        '\n\n✅ รายการนี้จะเพิ่มเข้าสต๊อคทันที' +
+        '\nยืนยันการเติมสินค้าหรือไม่?';
+    }
+
+    if (
+      !confirm(confirmText)
+    ) {
       return;
     }
 
@@ -5303,44 +5437,80 @@ async function previewDirectRestockFromLiff() {
       await apiGet({
         action:
           'submitDirectRestock',
+
         payload:
           JSON.stringify(payload)
       });
 
-    if (!result.ok) {
+    if (
+      !result.ok
+    ) {
       alert(
         result.message ||
         'บันทึกไม่สำเร็จ'
       );
+
       return;
     }
 
-    alert(
-      'เติมสินค้าเรียบร้อย\n\n' +
-      'เลขที่: ' +
-      result.delivery_id +
-      '\n' +
-      'สาขา: ' +
-      (
-        result.branch_name ||
-        result.branch_id
-      ) +
-      '\n' +
-      'รวม: ' +
-      result.total_qty +
-      ' ชิ้น\n' +
-      'รายการ Lot: ' +
-      Number(
-        result.lot_item_count || 0
-      )
-    );
+    if (
+      result.scheduled === true
+    ) {
+      alert(
+        'บันทึกแผนเติมล่วงหน้าเรียบร้อยแล้ว\n\n' +
+        'เลขที่: ' +
+        result.delivery_id +
+        '\n' +
+        'สาขา: ' +
+        (
+          result.branch_name ||
+          result.branch_id
+        ) +
+        '\n' +
+        'วันที่สินค้าเข้า: ' +
+        result.stock_date +
+        '\n' +
+        'รวม: ' +
+        result.total_qty +
+        ' ชิ้น\n\n' +
+        'ระบบจะเพิ่มสต๊อคให้อัตโนมัติเมื่อถึงวันที่กำหนด'
+      );
+    } else {
+      alert(
+        'เติมสินค้าเรียบร้อยแล้ว\n\n' +
+        'เลขที่: ' +
+        result.delivery_id +
+        '\n' +
+        'สาขา: ' +
+        (
+          result.branch_name ||
+          result.branch_id
+        ) +
+        '\n' +
+        'รวม: ' +
+        result.total_qty +
+        ' ชิ้น\n' +
+        'รายการ Lot: ' +
+        Number(
+          result.lot_item_count || 0
+        )
+      );
+    }
 
     directRestockClientRequestId =
       createDirectRestockClientRequestId_();
 
-    document.getElementById(
-      'directRestockOverallNote'
-    ).value = '';
+    const noteInput =
+      document.getElementById(
+        'directRestockOverallNote'
+      );
+
+    if (
+      noteInput
+    ) {
+      noteInput.value =
+        '';
+    }
 
     await loadDirectRestockItems();
 
@@ -5354,7 +5524,9 @@ async function previewDirectRestockFromLiff() {
     );
 
   } finally {
-    button.disabled = false;
+    button.disabled =
+      false;
+
     button.textContent =
       'ตรวจสอบก่อนบันทึก';
   }
