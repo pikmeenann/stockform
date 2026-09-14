@@ -8091,13 +8091,14 @@ async function produceFactoryOrder_() {
     
     main();
 
-    function parseDirectLotForDisplay_(
+function parseDirectLotForDisplay_(
   lotNo,
   referenceDate,
   clearanceDay
 ) {
   const cleanLotNo =
-    String(lotNo || '').trim();
+    String(lotNo || '')
+      .trim();
 
   if (!/^\d{4}$/.test(cleanLotNo)) {
     throw new Error(
@@ -8116,13 +8117,19 @@ async function produceFactoryOrder_() {
   }
 
   const yearDigit =
-    Number(cleanLotNo.charAt(0));
+    Number(
+      cleanLotNo.charAt(0)
+    );
 
   const weekNumber =
-    Number(cleanLotNo.slice(1, 3));
+    Number(
+      cleanLotNo.slice(1, 3)
+    );
 
   const weekdayNumber =
-    Number(cleanLotNo.charAt(3));
+    Number(
+      cleanLotNo.charAt(3)
+    );
 
   if (
     weekNumber < 1 ||
@@ -8133,12 +8140,20 @@ async function produceFactoryOrder_() {
     );
   }
 
+  /*
+   * 1 = จันทร์
+   * 2 = อังคาร
+   * 3 = พุธ
+   * 4 = พฤหัสบดี
+   * 5 = ศุกร์
+   * 6 = เสาร์
+   */
   if (
     weekdayNumber < 1 ||
-    weekdayNumber > 5
+    weekdayNumber > 6
   ) {
     throw new Error(
-      'เลขวันผลิตต้องอยู่ระหว่าง 1-5'
+      'เลขวันผลิตต้องอยู่ระหว่าง 1-6'
     );
   }
 
@@ -8148,9 +8163,18 @@ async function produceFactoryOrder_() {
       'T00:00:00Z'
     );
 
+  if (
+    isNaN(
+      referenceDateObj.getTime()
+    )
+  ) {
+    throw new Error(
+      'วันที่สินค้าเข้าไม่ถูกต้อง'
+    );
+  }
+
   const referenceYear =
-    referenceDateObj
-      .getUTCFullYear();
+    referenceDateObj.getUTCFullYear();
 
   const baseDecade =
     Math.floor(
@@ -8165,18 +8189,32 @@ async function produceFactoryOrder_() {
 
   candidates.sort(function(a, b) {
     const diffA =
-      Math.abs(a - referenceYear);
+      Math.abs(
+        a - referenceYear
+      );
 
     const diffB =
-      Math.abs(b - referenceYear);
+      Math.abs(
+        b - referenceYear
+      );
 
-    if (diffA !== diffB) {
+    if (
+      diffA !== diffB
+    ) {
       return diffA - diffB;
     }
 
     return (
-      (a > referenceYear ? 1 : 0) -
-      (b > referenceYear ? 1 : 0)
+      (
+        a > referenceYear
+          ? 1
+          : 0
+      ) -
+      (
+        b > referenceYear
+          ? 1
+          : 0
+      )
     );
   });
 
@@ -8201,7 +8239,7 @@ async function produceFactoryOrder_() {
     );
 
   weekOneMonday.setUTCDate(
-    januaryFourth.getUTCDate() -
+    weekOneMonday.getUTCDate() -
     januaryFourthWeekday +
     1
   );
@@ -8212,9 +8250,13 @@ async function produceFactoryOrder_() {
     );
 
   productionDateObj.setUTCDate(
-    weekOneMonday.getUTCDate() +
-    ((weekNumber - 1) * 7) +
-    (weekdayNumber - 1)
+    productionDateObj.getUTCDate() +
+    (
+      (weekNumber - 1) * 7
+    ) +
+    (
+      weekdayNumber - 1
+    )
   );
 
   if (
@@ -8231,44 +8273,54 @@ async function produceFactoryOrder_() {
       productionDateObj
     );
 
-  let clearanceStartDate = '';
+  let clearanceStartDate =
+    '';
 
   const cleanClearanceDay =
-    Number(clearanceDay || 0);
-
-  if (cleanClearanceDay > 0) {
-  const clearanceDateObj =
-    new Date(
-      referenceDate + 'T00:00:00Z'
+    Number(
+      clearanceDay || 0
     );
 
-  clearanceDateObj.setUTCDate(
-    clearanceDateObj.getUTCDate() +
-    cleanClearanceDay -
-    1
-  );
+  if (
+    cleanClearanceDay > 0
+  ) {
+    const clearanceDateObj =
+      new Date(
+        referenceDate +
+        'T00:00:00Z'
+      );
 
-  clearanceStartDate =
-    formatDirectLotDateKey_(
-      clearanceDateObj
+    clearanceDateObj.setUTCDate(
+      clearanceDateObj.getUTCDate() +
+      cleanClearanceDay -
+      1
     );
-}
+
+    clearanceStartDate =
+      formatDirectLotDateKey_(
+        clearanceDateObj
+      );
+  }
 
   const weekdayNames = {
     1: 'วันจันทร์',
     2: 'วันอังคาร',
     3: 'วันพุธ',
     4: 'วันพฤหัสบดี',
-    5: 'วันศุกร์'
+    5: 'วันศุกร์',
+    6: 'วันเสาร์'
   };
 
   return {
     lot_no:
       cleanLotNo,
+
     production_date:
       productionDate,
+
     clearance_start_date:
       clearanceStartDate,
+
     weekday_name_th:
       weekdayNames[
         weekdayNumber
