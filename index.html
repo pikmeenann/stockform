@@ -560,10 +560,75 @@ async function main() {
   }
 }
 
+    async function parseApiJsonResponse_(res) {
+      const responseText =
+        await res.text();
+
+      let data;
+
+      try {
+        data = JSON.parse(responseText);
+
+      } catch (err) {
+        const contentType =
+          String(
+            res.headers.get('content-type') ||
+            ''
+          );
+
+        throw new Error(
+          'ระบบ Google ตอบกลับผิดรูปแบบ' +
+          ' (HTTP ' + res.status + ')' +
+          (contentType
+            ? ' [' + contentType + ']'
+            : '') +
+          ' กรุณารอสักครู่แล้วตรวจรายการก่อนลองใหม่'
+        );
+      }
+
+      if (!res.ok) {
+        throw new Error(
+          data.message ||
+          'เชื่อมต่อระบบไม่สำเร็จ' +
+          ' (HTTP ' + res.status + ')'
+        );
+      }
+
+      return data;
+    }
+
     async function apiGet(params) {
-      const url = API_URL + '?' + new URLSearchParams(params).toString();
-      const res = await fetch(url);
-      return await res.json();
+      const url =
+        API_URL +
+        '?' +
+        new URLSearchParams(params).toString();
+
+      const res =
+        await fetch(url, {
+          method: 'GET',
+          redirect: 'follow',
+          cache: 'no-store'
+        });
+
+      return await parseApiJsonResponse_(res);
+    }
+
+    async function apiPost(params) {
+      const res =
+        await fetch(API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type':
+              'application/x-www-form-urlencoded;charset=UTF-8'
+          },
+          body:
+            new URLSearchParams(params)
+              .toString(),
+          redirect: 'follow',
+          cache: 'no-store'
+        });
+
+      return await parseApiJsonResponse_(res);
     }
 
     async function loadAppData() {
@@ -5327,7 +5392,7 @@ async function previewDirectRestockFromLiff() {
 
   try {
     const preview =
-      await apiGet({
+      await apiPost({
         action:
           'previewDirectRestock',
 
@@ -5434,7 +5499,7 @@ async function previewDirectRestockFromLiff() {
       'กำลังบันทึก...';
 
     const result =
-      await apiGet({
+      await apiPost({
         action:
           'submitDirectRestock',
 
