@@ -684,6 +684,11 @@ if (currentAction === 'stock_audit') {
   return;
 }
 
+if (currentAction === 'transfer') {
+  await renderStockTransferPage();
+  return;
+}
+
 if (currentAction === 'restock') {
   await renderDirectRestockPage();
   return;
@@ -8546,6 +8551,162 @@ function formatDirectLotDateThai_(
     ' ' +
     year
   );
+}
+
+let transferData = null;
+let transferClientRequestId = '';
+let transferSubmitting = false;
+
+function newTransferClientRequestId_() {
+  return 'TRF-CLIENT-' + Date.now() + '-' + Math.random().toString(36).slice(2, 10).toUpperCase();
+}
+
+async function renderStockTransferPage() {
+  hideAllCards();
+  transferClientRequestId = newTransferClientRequestId_();
+  document.body.innerHTML = `
+    <div class="card">
+      <h1>โยกสินค้าระหว่างสาขา</h1>
+      <div id="transferStatus" class="status">กำลังโหลดข้อมูล...</div>
+      <label>สาขาต้นทาง</label>
+      <select id="transferSource" onchange="loadTransferSourceStock_()"></select>
+      <label>สาขาปลายทาง</label>
+      <select id="transferDestination"></select>
+      <label>สินค้า</label>
+      <select id="transferProduct" onchange="updateTransferStockText_()"></select>
+      <div id="transferStockText" class="status" style="margin-top:10px;">กรุณาเลือกสาขาต้นทาง</div>
+      <label>จำนวนที่โยก</label>
+      <input id="transferQty" type="number" min="1" step="1" inputmode="numeric" placeholder="0">
+      <label>หมายเหตุ</label>
+      <textarea id="transferNote" rows="2" placeholder="เช่น ย้ายไปช่วยสาขาปลายทาง"></textarea>
+      <button id="transferPreviewBtn" onclick="previewStockTransferPage_()">ตรวจสอบก่อนโยก</button>
+    </div>
+    <div id="transferModal" class="modal-backdrop">
+      <div class="modal">
+        <h2>ยืนยันการโยกสินค้า</h2>
+        <div id="transferSummary" class="summary"></div>
+        <div class="modal-actions">
+          <button class="secondary" onclick="closeTransferPreview_()">กลับไปแก้ไข</button>
+          <button id="transferConfirmBtn" onclick="submitStockTransferPage_()">ยืนยันโยกสินค้า</button>
+        </div>
+      </div>
+    </div>`;
+  try {
+    const data = await apiGet({ action: 'transferData', lineUserId: lineUserId });
+    if (!data.ok) throw new Error(data.message || 'โหลดข้อมูลไม่สำเร็จ');
+    transferData = data;
+    const branchOptions = '<option value="">-- เลือกสาขา --</option>' +
+      (data.branches || []).map(function(b) {
+        return '<option value="' + escapeHtml_(b.branch_id) + '">' + escapeHtml_(b.branch_name || b.branch_id) + '</option>';
+      }).join('');
+    document.getElementById('transferSource').innerHTML = branchOptions;
+    document.getElementById('transferDestination').innerHTML = branchOptions;
+    document.getElementById('transferProduct').innerHTML = '<option value="">-- เลือกสินค้า --</option>' +
+      (data.products || []).map(function(p) {
+        return '<option value="' + escapeHtml_(p.product_id) + '">' + escapeHtml_((p.product_name || p.product_id) + ' (' + p.product_id + ')') + '</option>';
+      }).join('');
+    document.getElementById('transferStatus').textContent = 'ผู้ทำรายการ: ' + (data.user.name || '-') + ' | สิทธิ์: ' + (data.user.role || '-');
+  } catch (err) {
+    document.getElementById('transferStatus').textContent = err.message || String(err);
+    document.getElementById('transferPreviewBtn').disabled = true;
+  }
+}
+
+async function loadTransferSourceStock_() {
+  const source = document.getElementById('transferSource').value;
+  const destination = document.getElementById('transferDestination');
+  Array.from(destination.options).forEach(function(option) {
+    option.disabled = !!source && option.value === source;
+  });
+  if (destination.value === source) destination.value = '';
+  if (!source) {
+    transferData.stockMap = {};
+    updateTransferStockText_();
+    return;
+  }
+  document.getElementById('transferStockText').textContent = 'กำลังโหลดสต๊อกต้นทาง...';
+  try {
+    const data = await apiGet({ action: 'transferData', lineUserId: lineUserId, sourceBranchId: source });
+    if (!data.ok) throw new Error(data.message || 'โหลดสต๊อกไม่สำเร็จ');
+    transferData.stockMap = data.stockMap || {};
+    updateTransferStockText_();
+  } catch (err) {
+    document.getElementById('transferStockText').textContent = err.message || String(err);
+  }
+}
+
+function updateTransferStockText_() {
+  const source = document.getElementById('transferSource').value;
+  const product = document.getElementById('transferProduct').value;
+  const box = document.getElementById('transferStockText');
+  if (!source) { box.textContent = 'กรุณาเลือกสาขาต้นทาง'; return; }
+  if (!product) { box.textContent = 'กรุณาเลือกสินค้า'; return; }
+  box.textContent = 'คงเหลือต้นทาง: ' + Number((transferData.stockMap || {})[product] || 0) + ' ชิ้น';
+}
+
+function buildTransferPayload_() {
+  return {
+    lineUserId: lineUserId,
+    source_branch_id: document.getElementById('transferSource').value,
+    destination_branch_id: document.getElementById('transferDestination').value,
+    product_id: document.getElementById('transferProduct').value,
+    qty: Number(document.getElementById('transferQty').value || 0),
+    note: document.getElementById('transferNote').value.trim(),
+    client_request_id: transferClientRequestId
+  };
+}
+
+function transferLotText_(lots) {
+  if (!lots || !lots.length) return 'Lot: สินค้านี้ไม่บังคับ Lot';
+  return 'Lot ที่จะย้าย:\n' + lots.map(function(lot) {
+    return '- ' + lot.lot_no + ' ผลิต ' + formatDirectLotDateThai_(lot.production_date) + ' จำนวน ' + lot.qty;
+  }).join('\n');
+}
+
+async function previewStockTransferPage_() {
+  const button = document.getElementById('transferPreviewBtn');
+  button.disabled = true;
+  try {
+    const data = await apiPost({ action: 'previewStockTransfer', payload: JSON.stringify(buildTransferPayload_()) });
+    if (!data.ok) throw new Error(data.message || 'ตรวจสอบรายการไม่สำเร็จ');
+    document.getElementById('transferSummary').textContent =
+      'จาก: ' + data.source_branch_name + '\nไป: ' + data.destination_branch_name + '\nสินค้า: ' +
+      data.product_name + ' (' + data.product_id + ')\nจำนวน: ' + data.qty + '\n' +
+      'คงเหลือต้นทาง: ' + data.stock_before + ' → ' + data.stock_after + '\n\n' + transferLotText_(data.lots);
+    document.getElementById('transferModal').style.display = 'flex';
+  } catch (err) {
+    alert(err.message || String(err));
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function closeTransferPreview_() {
+  document.getElementById('transferModal').style.display = 'none';
+}
+
+async function submitStockTransferPage_() {
+  if (transferSubmitting) return;
+  transferSubmitting = true;
+  const button = document.getElementById('transferConfirmBtn');
+  button.disabled = true;
+  button.textContent = 'กำลังโยก...';
+  try {
+    const data = await apiPost({ action: 'submitStockTransfer', payload: JSON.stringify(buildTransferPayload_()) });
+    if (!data.ok) throw new Error(data.message || 'โยกสินค้าไม่สำเร็จ');
+    document.getElementById('transferModal').style.display = 'none';
+    document.body.innerHTML = `<div class="card"><h1>โยกสินค้าเรียบร้อย</h1>
+      <div class="factory-success">${escapeHtml_(data.source_branch_name)} → ${escapeHtml_(data.destination_branch_name)}<br>
+      ${escapeHtml_(data.product_name)} จำนวน ${Number(data.qty)} ชิ้น<br><br>
+      รหัส ${escapeHtml_(data.transfer_id)}</div>
+      <button onclick="renderStockTransferPage()">โยกรายการใหม่</button></div>`;
+  } catch (err) {
+    alert(err.message || String(err));
+    button.disabled = false;
+    button.textContent = 'ยืนยันโยกสินค้า';
+  } finally {
+    transferSubmitting = false;
+  }
 }
   </script>
 </body>
