@@ -8667,12 +8667,39 @@ async function previewStockTransferPage_() {
   const button = document.getElementById('transferPreviewBtn');
   button.disabled = true;
   try {
-    const data = await apiPost({ action: 'previewStockTransfer', payload: JSON.stringify(buildTransferPayload_()) });
+    const rawData = await apiPost({ action: 'previewStockTransfer', payload: JSON.stringify(buildTransferPayload_()) });
+    const data = rawData.preview || rawData.data || rawData.result || rawData;
     if (!data.ok) throw new Error(data.message || 'ตรวจสอบรายการไม่สำเร็จ');
+
+    if (data.preview_type !== 'STOCK_TRANSFER') {
+      throw new Error(
+        'หลังบ้านยังไม่ใช่เวอร์ชันเดียวกับหน้าโยกสินค้า กรุณา Deploy code.gs เป็น New version แล้วเปิดหน้านี้ใหม่'
+      );
+    }
+
+    const sourceSelect = document.getElementById('transferSource');
+    const destinationSelect = document.getElementById('transferDestination');
+    const productSelect = document.getElementById('transferProduct');
+    const sourceName = data.source_branch_name ||
+      (sourceSelect.options[sourceSelect.selectedIndex] || {}).text || data.source_branch_id;
+    const destinationName = data.destination_branch_name ||
+      (destinationSelect.options[destinationSelect.selectedIndex] || {}).text || data.destination_branch_id;
+    const productName = data.product_name ||
+      (productSelect.options[productSelect.selectedIndex] || {}).text || data.product_id;
+    const qty = Number(data.qty !== undefined ? data.qty : document.getElementById('transferQty').value);
+    const stockBefore = Number(data.stock_before !== undefined
+      ? data.stock_before
+      : ((transferData.stockMap || {})[productSelect.value] || 0));
+    const stockAfter = Number(data.stock_after !== undefined ? data.stock_after : stockBefore - qty);
+
+    if (!sourceName || !destinationName || !productName || !Number.isInteger(qty) || qty <= 0) {
+      throw new Error('ข้อมูล Preview ไม่ครบ กรุณาปิดหน้าแล้วเปิดใหม่อีกครั้ง');
+    }
+
     document.getElementById('transferSummary').textContent =
-      'จาก: ' + data.source_branch_name + '\nไป: ' + data.destination_branch_name + '\nสินค้า: ' +
-      data.product_name + ' (' + data.product_id + ')\nจำนวน: ' + data.qty + '\n' +
-      'คงเหลือต้นทาง: ' + data.stock_before + ' → ' + data.stock_after + '\n\n' + transferLotText_(data.lots);
+      'จาก: ' + sourceName + '\nไป: ' + destinationName + '\nสินค้า: ' +
+      productName + ' (' + (data.product_id || productSelect.value) + ')\nจำนวน: ' + qty + '\n' +
+      'คงเหลือต้นทาง: ' + stockBefore + ' → ' + stockAfter + '\n\n' + transferLotText_(data.lots);
     document.getElementById('transferModal').style.display = 'flex';
   } catch (err) {
     alert(err.message || String(err));
