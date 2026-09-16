@@ -430,6 +430,18 @@ td.product {
 #directRestockBranch {font-size:20px;font-weight:bold;border:2px solid #3b82f6}
 @media(max-width:480px){.factory-line{grid-template-columns:minmax(0,1fr) 62px 104px;gap:6px}.factory-fill input{width:70px!important}.factory-product{padding:10px 6px}.factory-line strong{font-size:14px}.factory-stock{font-size:12px}}
 
+
+.factory-history-overlay{position:fixed;inset:0;z-index:10000;background:#f8fafc;overflow:auto;padding:12px}
+.factory-history-overlay[hidden]{display:none}
+.factory-history-panel{max-width:760px;margin:auto;background:white;padding:16px;border-radius:12px}
+.factory-history-top{display:flex;align-items:center;gap:10px;justify-content:space-between}
+.factory-history-top button{width:auto}
+.factory-history-receipt{border:1px solid #cbd5e1;border-radius:10px;padding:12px;margin-top:16px;overflow-wrap:anywhere}
+.factory-history-receipt h3{margin:0 0 8px}
+.factory-history-table{overflow-x:auto}
+.factory-history-table table{width:100%;border-collapse:collapse;font-size:14px}
+.factory-history-table th,.factory-history-table td{padding:8px 4px;border-bottom:1px solid #e2e8f0;text-align:left}
+.factory-history-table th{background:#f1f5f9}
 </style>
 </head>
 
@@ -4554,6 +4566,7 @@ async function renderDirectRestockPage() {
   document.body.innerHTML = `
     <div class="card">
       <h1>เติมสินค้าเข้าสาขา</h1>
+      <button id="factoryHistoryOpen" type="button" class="secondary" onclick="openFactoryHistory_()">ตรวจรายการที่เติมวันนี้</button>
 
       <div class="small">
         ผู้บันทึก:
@@ -5318,7 +5331,7 @@ async function previewDirectRestockFromLiff() {
     directRestockItems = [];
     document.getElementById('directRestockItemsBox').innerHTML =
       '<div class="factory-success"><strong>' + (result.scheduled ? 'บันทึกแผนเติมล่วงหน้าสำเร็จ' : 'เติมเข้าสาขา ' + escapeHtml_(result.branch_name || result.branch_id) + ' สำเร็จ') +
-      '</strong><p>เลขรายการ ' + escapeHtml_(result.delivery_id || '') + '</p><button type="button" onclick="factoryNextBranch_()">เติมสาขาถัดไป</button></div>';
+      '</strong><p>เลขรายการ ' + escapeHtml_(result.delivery_id || '') + '</p><button type="button" onclick="openFactoryHistory_()">ตรวจรายการที่บันทึกจริง</button><button type="button" onclick="factoryNextBranch_()">เติมสาขาถัดไป</button></div>';
 
 
   } catch (err) {
@@ -8735,6 +8748,66 @@ async function submitStockTransferPage_() {
     transferSubmitting = false;
   }
 }
+
+let factoryHistorySequence_ = 0;
+function openFactoryHistory_() {
+  let overlay = document.getElementById('factoryHistoryOverlay');
+  if (overlay) {overlay.hidden=false;loadFactoryHistory_();return;}
+  overlay = document.createElement('div');
+  overlay.id='factoryHistoryOverlay';overlay.className='factory-history-overlay';
+  overlay.innerHTML=`<section class="factory-history-panel" role="dialog" aria-modal="true" aria-label="ตรวจรายการเติม">
+    <div class="factory-history-top"><h2>ตรวจรายการเติม</h2><button type="button" class="secondary" onclick="closeFactoryHistory_()">ปิด / กลับไปกรอก</button></div>
+    <p>ข้อมูลที่บันทึกจริง ใช้เทียบใบส่งของหรือจำนวนที่จัดส่ง</p>
+    <label>ค้นหาตาม<select id="factoryHistoryMode"><option value="created">วันที่บันทึกรายการ</option><option value="stock">วันที่สินค้าเข้าสาขา</option></select></label>
+    <label>วันที่<input id="factoryHistoryDate" type="date"></label>
+    <label>สาขา<select id="factoryHistoryBranch"><option value="">ทุกสาขา</option></select></label>
+    <button id="factoryHistoryRefresh" type="button" onclick="loadFactoryHistory_()">ค้นหา / รีเฟรช</button>
+    <div id="factoryHistoryResults" aria-live="polite"></div>
+  </section>`;
+  document.body.appendChild(overlay);
+  const dateParts=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+  const part=function(t){return dateParts.find(function(p){return p.type===t;}).value;};
+  document.getElementById('factoryHistoryDate').value=part('year')+'-'+part('month')+'-'+part('day');
+  (appData.branches || []).forEach(function(b){const o=document.createElement('option');o.value=b.branch_id;o.textContent=b.branch_name || b.branch_id;document.getElementById('factoryHistoryBranch').appendChild(o);});
+  document.getElementById('factoryHistoryDate').focus();
+  loadFactoryHistory_();
+}
+function closeFactoryHistory_(){
+  factoryHistorySequence_++;
+  const overlay=document.getElementById('factoryHistoryOverlay');
+  if(overlay)overlay.remove();
+  const button=document.getElementById('factoryHistoryOpen');if(button)button.focus();
+}
+function factoryHistoryStatus_(status) {
+  const labels={COMPLETED:'เข้าสตอคแล้ว',SCHEDULED:'รอเข้าตามวันที่',PROCESSING:'กำลังดำเนินการ — ตรวจสอบก่อนคีย์ซ้ำ',VOID:'ยกเลิกแล้ว',CANCELLED:'ยกเลิกแล้ว',FAILED:'ผิดพลาด — ให้เจ้าของตรวจสอบ',ERROR:'ผิดพลาด — ให้เจ้าของตรวจสอบ',MIXED:'สถานะต่างกัน — ให้เจ้าของตรวจสอบ'};
+  return labels[status] || 'ต้องตรวจสอบสถานะ: '+status;
+}
+async function loadFactoryHistory_(){
+  const sequence=++factoryHistorySequence_;
+  const box=document.getElementById('factoryHistoryResults');
+  const date=document.getElementById('factoryHistoryDate').value;
+  if(!date){box.textContent='กรุณาเลือกวันที่';return;}
+  const branch=document.getElementById('factoryHistoryBranch').value;
+  const mode=document.getElementById('factoryHistoryMode').value;
+  box.textContent='กำลังอ่านรายการที่บันทึกจริง…';
+  try {
+    const data=await apiGet({action:'factoryRestockHistory',lineUserId:lineUserId,date:date,dateMode:mode,branchId:branch,_:Date.now()});
+    if(sequence!==factoryHistorySequence_)return;
+    if(!data.ok)throw new Error(data.message || 'อ่านข้อมูลไม่สำเร็จ');
+    const deliveries=data.deliveries || [];
+    box.innerHTML='<p class="small">อัปเดต '+escapeHtml_(data.updated_at || '')+' · พบ '+deliveries.length+' รอบส่ง</p>'+
+      (deliveries.length?'':'<p>ไม่พบรายการตามวันที่และสาขาที่เลือก</p>')+
+      deliveries.map(function(g){
+        return '<article class="factory-history-receipt"><h3>'+escapeHtml_(g.branch_name)+'</h3><strong>'+escapeHtml_(factoryHistoryStatus_(g.status))+'</strong>'+
+        '<p>วันที่สินค้าเข้า '+escapeHtml_(g.stock_date)+'<br>บันทึก '+escapeHtml_(g.created_at)+' · ผู้บันทึก '+escapeHtml_(g.recorder_name || 'ไม่ระบุ')+'<br>เลขรายการ '+escapeHtml_(g.delivery_id || 'ไม่พบเลขรายการ')+'</p>'+
+        '<div class="factory-history-table"><table><thead><tr><th>สินค้า</th><th>จำนวนที่บันทึก</th><th>ล็อต / วันที่ผลิต</th></tr></thead><tbody>'+
+        (g.items || []).map(function(i){return '<tr><td>'+escapeHtml_(i.product_name)+' <small>'+escapeHtml_(i.product_id)+'</small><br><small>'+escapeHtml_(factoryHistoryStatus_(i.status))+'</small>'+
+        (i.error_message?'<br><small>'+escapeHtml_(i.error_message)+'</small>':'')+(i.note?'<br><small>หมายเหตุ: '+escapeHtml_(i.note)+'</small>':'')+'</td><td>'+Number(i.qty)+'</td><td>'+escapeHtml_(i.lot_no || '—')+'<br><small>'+escapeHtml_(i.production_date || '')+'</small></td></tr>';}).join('')+
+        '</tbody></table></div><p><strong>รวมจำนวนในใบรายการ '+Number(g.total_qty)+' ชิ้น</strong></p><p class="small">ยอดรวมนี้ไม่ใช่ยอดคงเหลือสาขา ให้ตรวจสถานะก่อนนับเป็นสินค้าที่เข้าแล้ว</p></article>';
+      }).join('');
+  }catch(e){if(sequence===factoryHistorySequence_)box.textContent='อ่านรายการไม่สำเร็จ: '+e.message+' กรุณารีเฟรชเพื่อตรวจรายการก่อนคีย์ซ้ำ';}
+}
+
   </script>
 </body>
 </html>
